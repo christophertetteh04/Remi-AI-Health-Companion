@@ -3,7 +3,7 @@ import { View, Text, Linking, Pressable, StyleSheet } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { Card, ScreenHeader } from "../components/UI";
-import { Phone, Lock, Pencil } from "lucide-react-native";
+import { ChevronRight, Phone, Lock, Pencil } from "lucide-react-native";
 
 const STORAGE_KEY = "remi_emergency_info";
 
@@ -59,13 +59,16 @@ export default function EmergencyScreen({ navigation }: any) {
             </View>
           </Card>
         </Pressable>
-        <Card style={{ flexDirection: "row", alignItems: "center" }}>
-          <Lock size={17} color={colors.primary} />
-          <View style={{ marginLeft: 12 }}>
-            <Text style={styles.cardTitle}>Privacy & data controls</Text>
-            <Text style={styles.cardSub}>View, export, or delete your health data</Text>
-          </View>
-        </Card>
+        <Pressable onPress={() => navigation.navigate("Settings")}>
+          <Card style={{ flexDirection: "row", alignItems: "center" }}>
+            <Lock size={17} color={colors.primary} />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={styles.cardTitle}>Privacy & data controls</Text>
+              <Text style={styles.cardSub}>View, export, or delete your health data</Text>
+            </View>
+            <ChevronRight size={16} color={colors.inkFaint} />
+          </Card>
+        </Pressable>
       </View>
     </View>
   );
