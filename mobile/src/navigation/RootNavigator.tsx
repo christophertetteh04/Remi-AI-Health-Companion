@@ -25,6 +25,8 @@ import ConditionsScreen from "../screens/ConditionsScreen";
 import ArtAdherenceScreen from "../screens/ArtAdherenceScreen";
 import AsthmaRespiratoryScreen from "../screens/AsthmaRespiratoryScreen";
 import KidneyFunctionScreen from "../screens/KidneyFunctionScreen";
+import CholesterolTrackingScreen from "../screens/CholesterolTrackingScreen";
+import ThyroidTrackingScreen from "../screens/ThyroidTrackingScreen";
 import PainCrisisLogScreen from "../screens/PainCrisisLogScreen";
 import WomensHealthScreen from "../screens/WomensHealthScreen";
 import LifestyleScreen from "../screens/LifestyleScreen";
@@ -83,6 +85,8 @@ export default function RootNavigator({ hasSession, onboarded }: { hasSession: b
         <Stack.Screen name="ArtAdherence" component={ArtAdherenceScreen} />
         <Stack.Screen name="AsthmaRespiratory" component={AsthmaRespiratoryScreen} />
         <Stack.Screen name="KidneyFunction" component={KidneyFunctionScreen} />
+        <Stack.Screen name="CholesterolTracking" component={CholesterolTrackingScreen} />
+        <Stack.Screen name="ThyroidTracking" component={ThyroidTrackingScreen} />
         <Stack.Screen name="PainCrisisLog" component={PainCrisisLogScreen} options={{ presentation: "modal" }} />
         <Stack.Screen name="WomensHealth" component={WomensHealthScreen} />
         <Stack.Screen name="Lifestyle" component={LifestyleScreen} />

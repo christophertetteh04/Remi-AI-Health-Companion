@@ -188,6 +188,50 @@ export async function scheduleKidneyLabReminder(nextLabISODate: string) {
   return id;
 }
 
+export async function scheduleCholesterolLabReminder(nextLabISODate: string) {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const target = new Date(nextLabISODate);
+  if (Number.isNaN(target.getTime())) return null;
+  target.setHours(9, 0, 0, 0);
+
+  const existing = await SecureStore.getItemAsync("remi_cholesterol_lab_reminder_id");
+  if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: { title: "Remi reminder", body: "Your cholesterol lab follow-up is due today.", data: { type: "lab", condition: "cholesterol" } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
+  });
+  await SecureStore.setItemAsync("remi_cholesterol_lab_reminder_id", id);
+  return id;
+}
+
+export async function scheduleThyroidLabReminder(nextLabISODate: string) {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const target = new Date(nextLabISODate);
+  if (Number.isNaN(target.getTime())) return null;
+  target.setHours(9, 0, 0, 0);
+
+  const existing = await SecureStore.getItemAsync("remi_thyroid_lab_reminder_id");
+  if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: { title: "Remi reminder", body: "Your thyroid lab follow-up is due today.", data: { type: "lab", condition: "thyroid" } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
+  });
+  await SecureStore.setItemAsync("remi_thyroid_lab_reminder_id", id);
+  return id;
+}
+
 export async function scheduleDentalVisionReminder() {
   const Notifications = await getNotifications();
   if (!Notifications) return null;

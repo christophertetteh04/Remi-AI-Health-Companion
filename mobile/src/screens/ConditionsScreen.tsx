@@ -184,6 +184,30 @@ export default function ConditionsScreen({ navigation }: any) {
                     <ChevronRight size={13} color={colors.primary} />
                   </Pressable>
                 )}
+                {c === "cholesterol" && on && (
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      navigation.navigate("CholesterolTracking");
+                    }}
+                    style={styles.linkBtn}
+                  >
+                    <Text style={styles.linkText}>Set up cholesterol plan</Text>
+                    <ChevronRight size={13} color={colors.primary} />
+                  </Pressable>
+                )}
+                {c === "thyroid" && on && (
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      navigation.navigate("ThyroidTracking");
+                    }}
+                    style={styles.linkBtn}
+                  >
+                    <Text style={styles.linkText}>Set up thyroid plan</Text>
+                    <ChevronRight size={13} color={colors.primary} />
+                  </Pressable>
+                )}
               </View>
             </Pressable>
           );
