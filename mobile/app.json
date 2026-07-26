@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Remi",
+    "slug": "remi-health-companion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#17151E"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.remi.health",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Remi uses your camera to help you capture visible symptoms or documents you choose to share.",
+        "NSMicrophoneUsageDescription": "Remi uses your microphone so you can speak your check-ins instead of typing.",
+        "NSFaceIDUsageDescription": "Remi uses Face ID to keep your health information private on this device.",
+        "NSLocationWhenInUseUsageDescription": "Remi uses your location to help find nearby pharmacies when a medication isn't available."
+      }
+    },
+    "android": {
+      "package": "com.remi.health",
+      "permissions": ["CAMERA", "RECORD_AUDIO", "USE_BIOMETRIC", "SCHEDULE_EXACT_ALARM"]
+    }
+  }
+}

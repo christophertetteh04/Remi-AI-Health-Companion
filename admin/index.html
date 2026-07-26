@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Remi Admin</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #17151E; color: #F3F1F7; margin: 0; padding: 32px; }
+  h1 { font-weight: 500; }
+  input { background: #1F1D29; border: 1px solid #332F42; color: #F3F1F7; padding: 10px 14px; border-radius: 10px; width: 280px; }
+  button { background: #9B8CFA; border: none; color: #17151E; padding: 10px 18px; border-radius: 10px; font-weight: 600; margin-left: 8px; cursor: pointer; }
+  section { margin-top: 32px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #332F42; font-size: 13px; }
+  th { color: #9C97AE; font-weight: 500; }
+  .urgent { color: #FF6B5B; }
+  .empty { color: #6E6A80; font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <h1>Remi Admin</h1>
+  <div>
+    <input id="apiUrl" placeholder="Backend URL" value="http://localhost:3000" />
+    <input id="adminKey" placeholder="Admin key" type="password" />
+    <button onclick="loadAll()">Load</button>
+  </div>
+
+  <section>
+    <h2>Flagged / urgent cases</h2>
+    <div id="flagged" class="empty">Not loaded yet.</div>
+  </section>
+
+  <section>
+    <h2>Users</h2>
+    <div id="users" class="empty">Not loaded yet.</div>
+  </section>
+
+  <section>
+    <h2>Access log (most recent)</h2>
+    <div id="logs" class="empty">Not loaded yet.</div>
+  </section>
+
+<script>
+async function call(path) {
+  const base = document.getElementById('apiUrl').value;
+  const key = document.getElementById('adminKey').value;
+  const res = await fetch(base + path, { headers: { 'x-admin-key': key } });
+  if (!res.ok) throw new Error('Request failed: ' + res.status);
+  return res.json();
+}
+
+async function loadAll() {
+  try {
+    const flagged = await call('/admin/flagged');
+    document.getElementById('flagged').innerHTML = renderFlagged(flagged);
+  } catch (e) { document.getElementById('flagged').innerText = 'Error: ' + e.message; }
+
+  try {
+    const users = await call('/admin/users');
+    document.getElementById('users').innerHTML = renderUsers(users);
+  } catch (e) { document.getElementById('users').innerText = 'Error: ' + e.message; }
+
+  try {
+    const logs = await call('/admin/access-logs');
+    document.getElementById('logs').innerHTML = renderLogs(logs);
+  } catch (e) { document.getElementById('logs').innerText = 'Error: ' + e.message; }
+}
+
+function renderFlagged(data) {
+  const rows = [...data.symptomEpisodes, ...data.vitalsReadings];
+  if (!rows.length) return '<p class="empty">No urgent-tier cases right now.</p>';
+  return '<table><tr><th>Type</th><th>Detail</th><th>Created</th></tr>' +
+    rows.map(r => `<tr><td class="urgent">urgent</td><td>${r.description || (r.systolic + '/' + r.diastolic)}</td><td>${r.created_at}</td></tr>`).join('') +
+    '</table>';
+}
+function renderUsers(users) {
+  if (!users.length) return '<p class="empty">No users yet.</p>';
+  return '<table><tr><th>Name</th><th>Phone</th><th>Language</th><th>Joined</th></tr>' +
+    users.map(u => `<tr><td>${u.full_name || '—'}</td><td>${u.phone || '—'}</td><td>${u.language}</td><td>${u.created_at}</td></tr>`).join('') +
+    '</table>';
+}
+function renderLogs(logs) {
+  if (!logs.length) return '<p class="empty">No access logs yet.</p>';
+  return '<table><tr><th>Resource</th><th>Action</th><th>Actor</th><th>When</th></tr>' +
+    logs.map(l => `<tr><td>${l.resource}</td><td>${l.action}</td><td>${l.actor}</td><td>${l.created_at}</td></tr>`).join('') +
+    '</table>';
+}
+</script>
+</body>
+</html>
