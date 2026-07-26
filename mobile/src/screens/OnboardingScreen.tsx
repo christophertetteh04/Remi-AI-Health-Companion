@@ -18,6 +18,7 @@ export default function OnboardingScreen({ navigation }: any) {
   const finish = async () => {
     if (!consent || !terms) return;
     if (lockOn) await enableLock();
+    await SecureStore.setItemAsync("remi_profile", JSON.stringify({ name: name.trim(), phone: phone.trim(), email: "" }));
     await SecureStore.setItemAsync("remi_onboarded", "true");
     navigation.replace("Welcome");
   };

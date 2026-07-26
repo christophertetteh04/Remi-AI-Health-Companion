@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { colors, radius, fonts } from "../theme/tokens";
 import { Card, ScreenHeader } from "../components/UI";
-import { Pill, Check, AlertTriangle } from "lucide-react-native";
+import { Pill, Check, AlertTriangle, Camera, ImageUp } from "lucide-react-native";
 import { getMedications, markMedicationTaken } from "../services/api";
+import { addRecentActivity } from "../services/recentActivity";
 
 type Medication = { id: string; name: string; dose: string; time: string; note: string; takenToday: boolean };
 
-export default function MedsScreen() {
+export default function MedsScreen({ navigation }: any) {
   const [meds, setMeds] = useState<Medication[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -22,6 +23,13 @@ export default function MedsScreen() {
     setMeds((prev) => prev.map((m) => (m.id === id ? { ...m, takenToday: true } : m)));
     try {
       await markMedicationTaken(id, new Date().toISOString());
+      const med = meds.find((m) => m.id === id);
+      await addRecentActivity({
+        type: "medication",
+        title: "Medication marked taken",
+        detail: med ? `${med.name} ${med.dose}`.trim() : "Dose marked complete",
+        route: "Meds",
+      });
     } catch {
       // optimistic update stands even if the log call fails; a retry/sync queue is a V2 item
     }
@@ -31,6 +39,23 @@ export default function MedsScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScreenHeader title="Medications" subtitle="Your prescriptions and reminders" />
       <View style={{ paddingHorizontal: 28, gap: 12 }}>
+        <Card style={styles.uploadCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.uploadTitle}>Add prescription</Text>
+            <Text style={styles.uploadText}>Scan a label or prescription image.</Text>
+          </View>
+          <View style={styles.uploadActions}>
+            <Pressable onPress={() => navigation.navigate("PrescriptionScan", { source: "camera" })} style={styles.uploadButton}>
+              <Camera size={16} color={colors.primary} />
+              <Text style={styles.uploadButtonText}>Camera</Text>
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate("PrescriptionScan", { source: "library" })} style={styles.uploadButton}>
+              <ImageUp size={16} color={colors.primary} />
+              <Text style={styles.uploadButtonText}>Upload</Text>
+            </Pressable>
+          </View>
+        </Card>
+
         {loading && <Text style={{ color: colors.inkFaint, fontFamily: fonts.body }}>Loading…</Text>}
         {!loading && meds.length === 0 && (
           <Text style={{ color: colors.inkFaint, fontFamily: fonts.body, fontSize: 13 }}>
@@ -69,6 +94,12 @@ export default function MedsScreen() {
 }
 
 const styles = StyleSheet.create({
+  uploadCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+  uploadTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 14 },
+  uploadText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 3 },
+  uploadActions: { flexDirection: "row", gap: 8 },
+  uploadButton: { width: 72, height: 54, borderRadius: 8, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
+  uploadButtonText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 11, marginTop: 4 },
   pillIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
   medName: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 14 },
   medTime: { color: colors.inkFaint, fontFamily: fonts.mono, fontSize: 11 },

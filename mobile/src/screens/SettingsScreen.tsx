@@ -34,7 +34,7 @@ const ANALYTICS_KEY = "remi_analytics_enabled";
 
 type Profile = { name: string; phone: string; email: string };
 
-const defaultProfile: Profile = { name: "Ama Owusu", phone: "", email: "" };
+const defaultProfile: Profile = { name: "", phone: "", email: "" };
 
 export default function SettingsScreen({ navigation }: any) {
   const [profile, setProfile] = useState<Profile>(defaultProfile);

@@ -6,11 +6,12 @@ import { type CheckinTopic, sendCheckinMessage } from "../services/api";
 import { startRecording, stopRecordingAndTranscribe, cancelRecording } from "../services/voiceRecording";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
+import { addRecentActivity } from "../services/recentActivity";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 type Msg = { from: "user" | "bot"; text: string; urgency?: "normal" | "monitor" | "urgent" };
-const initialMessages: Msg[] = [{ from: "bot", text: "How are you feeling today, Ama?" }];
+const initialMessages: Msg[] = [{ from: "bot", text: "How are you feeling today?" }];
 const sexualHealthPrompt =
   "We can talk about STI symptoms, testing, contraception, periods, pregnancy concerns, or reproductive health. I won't diagnose you. What are you noticing, and when did it start?";
 
@@ -36,6 +37,12 @@ export default function ChatScreen({ navigation }: any) {
         navigation.navigate("Crisis");
         return;
       }
+      await addRecentActivity({
+        type: "chat",
+        title: checkinTopic === "sexual_health" ? "Sexual health conversation" : "Health check-in conversation",
+        detail: res.urgency === "urgent" ? "Urgent guidance was recommended" : "Conversation saved from Chat",
+        route: "Chat",
+      });
       setMessages([...next, { from: "bot", text: res.reply, urgency: res.urgency }]);
     } catch (e) {
       setMessages([...next, { from: "bot", text: "I couldn't reach the server just now — please try again." }]);
@@ -81,6 +88,12 @@ export default function ChatScreen({ navigation }: any) {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({ imageBase64: photoBase64, bodyLocation: locationLabel }),
+          });
+          await addRecentActivity({
+            type: "chat",
+            title: "Symptom photo added",
+            detail: `Location: ${locationLabel}`,
+            route: "Chat",
           });
           setMessages((prev) => [...prev, { from: "user", text: `📷 Photo attached — location: ${locationLabel}` }]);
         } catch {

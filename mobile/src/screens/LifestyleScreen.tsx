@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { Card, PrimaryButton, ScreenHeader } from "../components/UI";
+import { addRecentActivity } from "../services/recentActivity";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 const TABS = ["Sleep", "Activity", "Weight", "Substance use"] as const;
@@ -47,6 +48,12 @@ function SleepForm() {
   const [saved, setSaved] = useState(false);
   const save = async () => {
     await post("/lifestyle/sleep", { hours: Number(hours), quality });
+    await addRecentActivity({
+      type: "lifestyle",
+      title: "Sleep logged",
+      detail: `${hours || 0} hours, ${quality} quality`,
+      route: "Lifestyle",
+    });
     setSaved(true);
   };
   return (
@@ -70,6 +77,12 @@ function ActivityForm() {
   const [saved, setSaved] = useState(false);
   const save = async () => {
     await post("/lifestyle/activity", { activityType, minutes: Number(minutes) });
+    await addRecentActivity({
+      type: "lifestyle",
+      title: "Activity logged",
+      detail: `${activityType || "Activity"}${minutes ? `, ${minutes} minutes` : ""}`,
+      route: "Lifestyle",
+    });
     setSaved(true);
   };
   return (
@@ -88,6 +101,12 @@ function WeightForm() {
   const save = async () => {
     const res = await post("/lifestyle/weight", { weightKg: Number(weightKg), heightCm: heightCm ? Number(heightCm) : undefined });
     const data = await res.json();
+    await addRecentActivity({
+      type: "lifestyle",
+      title: "Weight logged",
+      detail: weightKg ? `${weightKg} kg` : "Weight entry saved",
+      route: "Lifestyle",
+    });
     setBmi(data?.data?.bmi ?? null);
   };
   return (
@@ -110,6 +129,12 @@ function SubstanceForm() {
   const [saved, setSaved] = useState(false);
   const save = async () => {
     await post("/lifestyle/substance-use", { substance, note });
+    await addRecentActivity({
+      type: "lifestyle",
+      title: "Lifestyle note saved",
+      detail: `${substance}${note ? `: ${note}` : ""}`,
+      route: "Lifestyle",
+    });
     setSaved(true);
     setNote("");
   };

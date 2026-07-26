@@ -5,6 +5,7 @@ import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { Card, PrimaryButton, GhostButton, ScreenHeader } from "../components/UI";
 import { Sparkles } from "lucide-react-native";
+import { addRecentActivity } from "../services/recentActivity";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -39,7 +40,14 @@ export default function LabUploadScreen({ navigation }: any) {
         body: JSON.stringify({ imageBase64: picked.assets[0].base64, mediaType: "image/jpeg" }),
       });
       if (!res.ok) throw new Error();
-      setResult(await res.json());
+      const data = await res.json();
+      setResult(data);
+      await addRecentActivity({
+        type: "lab",
+        title: "Lab result uploaded",
+        detail: data?.testType ? `${data.testType} was reviewed` : "Report was reviewed",
+        route: "DailyInsights",
+      });
     } catch {
       setError("We couldn't read that report — please try a clearer photo, or add it later.");
     } finally {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, Image, ScrollView, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
@@ -6,13 +6,14 @@ import { colors, fonts } from "../theme/tokens";
 import { PrimaryButton, GhostButton, ScreenHeader } from "../components/UI";
 import { AlertTriangle } from "lucide-react-native";
 import { scheduleMedicationReminder } from "../services/notifications";
+import { addRecentActivity } from "../services/recentActivity";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 // This screen is the safety mechanism described in the flow doc:
 // OCR output is ALWAYS shown as an editable draft here — nothing is
 // saved to medications until the user explicitly confirms each field.
-export default function PrescriptionScanScreen({ navigation }: any) {
+export default function PrescriptionScanScreen({ navigation, route }: any) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [draft, setDraft] = useState<{ drugName: string; dose: string; frequency: string; note: string | null } | null>(null);
@@ -20,8 +21,14 @@ export default function PrescriptionScanScreen({ navigation }: any) {
   const [saving, setSaving] = useState(false);
   const [awaitingAvailability, setAwaitingAvailability] = useState(false);
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 });
+  useEffect(() => {
+    if (route?.params?.source === "camera") pickImage(true);
+    if (route?.params?.source === "library") pickImage(false);
+  }, [route?.params?.source]);
+
+  const pickImage = async (fromCamera: boolean) => {
+    const picker = fromCamera ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+    const result = await picker({ base64: true, quality: 0.7 });
     if (result.canceled) return;
     setImageUri(result.assets[0].uri);
     await scan(result.assets[0].base64!);
@@ -62,6 +69,12 @@ export default function PrescriptionScanScreen({ navigation }: any) {
       if (saved?.id) {
         await scheduleMedicationReminder(saved.id, hour, minute);
       }
+      await addRecentActivity({
+        type: "medication",
+        title: "Prescription added",
+        detail: draft.drugName ? `${draft.drugName} ${draft.dose}`.trim() : "Medication draft confirmed",
+        route: "Meds",
+      });
       // Medication availability check — reminders are already
       // scheduled above, but we still ask, since a "no" here is what
       // should route the user to nearby pharmacies rather than
@@ -86,7 +99,12 @@ export default function PrescriptionScanScreen({ navigation }: any) {
         <>
       <ScreenHeader title="Scan prescription" subtitle="We'll show you exactly what we read — nothing saves automatically" />
       <View style={{ paddingHorizontal: 28 }}>
-        {!imageUri && <PrimaryButton title="Take a photo" onPress={pickImage} />}
+        {!imageUri && (
+          <View style={{ gap: 10 }}>
+            <PrimaryButton title="Take a photo" onPress={() => pickImage(true)} />
+            <GhostButton title="Choose from library" onPress={() => pickImage(false)} />
+          </View>
+        )}
         {imageUri && <Image source={{ uri: imageUri }} style={styles.preview} />}
 
         {scanning && <Text style={styles.loading}>Reading prescription…</Text>}

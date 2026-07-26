@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TextInput, StyleSheet } from "react-native";
 import { colors, fonts } from "../theme/tokens";
 import { Card, PrimaryButton, ScreenHeader, UrgencyDot } from "../components/UI";
 import { submitVitalsReading } from "../services/api";
+import { addRecentActivity } from "../services/recentActivity";
 
 export default function VitalsScreen() {
   const [systolic, setSystolic] = useState("118");
@@ -15,8 +16,20 @@ export default function VitalsScreen() {
     try {
       const res = await submitVitalsReading({ systolic: Number(systolic), diastolic: Number(diastolic) });
       setResult({ tier: res.tier, message: res.message });
+      await addRecentActivity({
+        type: "vitals",
+        title: "Weekly vitals logged",
+        detail: `Blood pressure ${systolic}/${diastolic}`,
+        route: "Vitals",
+      });
     } catch {
       setResult({ tier: "normal", message: "Saved locally — will sync once connected." });
+      await addRecentActivity({
+        type: "vitals",
+        title: "Weekly vitals saved locally",
+        detail: `Blood pressure ${systolic}/${diastolic}`,
+        route: "Vitals",
+      });
     } finally {
       setSaving(false);
     }
