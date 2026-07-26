@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { colors, fonts, urgencyColor } from "../theme/tokens";
-import { Send, Mic, Square, Trash2 } from "lucide-react-native";
+import { HeartPulse, Send, Mic, ShieldCheck, Square, Trash2 } from "lucide-react-native";
 import { type CheckinTopic, sendCheckinMessage } from "../services/api";
 import { startRecording, stopRecordingAndTranscribe, cancelRecording } from "../services/voiceRecording";
 import * as ImagePicker from "expo-image-picker";
@@ -18,10 +18,6 @@ function makeMessage(message: Omit<Msg, "createdAt">): Msg {
   return { ...message, createdAt: new Date().toISOString() };
 }
 
-function createInitialMessages() {
-  return [makeMessage({ from: "bot", text: "How are you feeling today?" })];
-}
-
 function formatMessageTime(createdAt: string) {
   const date = new Date(createdAt);
   return date.toLocaleString(undefined, {
@@ -32,8 +28,16 @@ function formatMessageTime(createdAt: string) {
   });
 }
 
+function timeOfDay(date: Date) {
+  const hour = date.getHours();
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}
+
 export default function ChatScreen({ navigation }: any) {
-  const [messages, setMessages] = useState<Msg[]>(() => createInitialMessages());
+  const accessedAt = useRef(new Date()).current;
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -87,7 +91,7 @@ export default function ChatScreen({ navigation }: any) {
     setLoading(false);
     setInput("");
     setCheckinTopic("general");
-    setMessages(createInitialMessages());
+    setMessages([]);
   };
 
   const capturePhoto = async () => {
@@ -157,6 +161,7 @@ export default function ChatScreen({ navigation }: any) {
         contentContainerStyle={styles.messagesContent}
         keyboardShouldPersistTaps="handled"
       >
+        <AnimatedGreetingCard accessedAt={accessedAt} />
         {messages.map((m, i) => (
           <MessageBubble key={`${m.createdAt}-${i}`} message={m} />
         ))}
@@ -215,6 +220,49 @@ export default function ChatScreen({ navigation }: any) {
         </View>
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+function AnimatedGreetingCard({ accessedAt }: { accessedAt: Date }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(14)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 360, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 360, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      ),
+    ]).start();
+  }, [opacity, pulse, translateY]);
+
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
+
+  return (
+    <Animated.View style={[styles.greetingCard, { opacity, transform: [{ translateY }] }]}>
+      <View style={styles.greetingTop}>
+        <View style={styles.remiMark}>
+          <Animated.View style={[styles.remiPulse, { transform: [{ scale }] }]} />
+          <HeartPulse size={22} color={colors.bg} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.remiName}>Remi</Text>
+          <Text style={styles.remiStatus}>Your health companion</Text>
+        </View>
+        <View style={styles.secureBadge}>
+          <ShieldCheck size={12} color={colors.mint} />
+          <Text style={styles.secureText}>Private</Text>
+        </View>
+      </View>
+      <Text style={styles.greetingTitle}>Hey, I'm Remi, your health companion.</Text>
+      <Text style={styles.greetingBody}>How are you feeling this {timeOfDay(accessedAt)}?</Text>
+      <Text style={styles.greetingTime}>Opened {formatMessageTime(accessedAt.toISOString())}</Text>
+    </Animated.View>
   );
 }
 
@@ -304,7 +352,18 @@ function RecordingBanner() {
 }
 
 const styles = StyleSheet.create({
-  messagesContent: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
+  messagesContent: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 16 },
+  greetingCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, marginBottom: 18, shadowColor: "#0F172A", shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  greetingTop: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  remiMark: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 12, overflow: "hidden" },
+  remiPulse: { position: "absolute", width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.14)" },
+  remiName: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 15 },
+  remiStatus: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 2 },
+  secureBadge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.mintDim, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
+  secureText: { color: colors.mint, fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
+  greetingTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 22, lineHeight: 29 },
+  greetingBody: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 8 },
+  greetingTime: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 12 },
   bubble: { maxWidth: "80%", borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 4 },
   bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.primary, borderBottomRightRadius: 6 },
   bubbleBot: { alignSelf: "flex-start", backgroundColor: colors.surface, borderBottomLeftRadius: 6 },

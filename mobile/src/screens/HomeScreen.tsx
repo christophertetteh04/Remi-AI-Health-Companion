@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { Image, View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as SecureStore from "expo-secure-store";
 import { colors, radius, spacing, fonts } from "../theme/tokens";
@@ -15,7 +15,6 @@ import {
   HeartPulse,
   Leaf,
   MessageCircle,
-  Mic,
   Pill,
   Settings,
   ShieldPlus,
@@ -25,6 +24,7 @@ import {
 import { getRecentActivities, type RecentActivity } from "../services/recentActivity";
 
 const PROFILE_KEY = "remi_profile";
+const homeHeroImage = require("../../assets/images/home-dashboard-hero.jpg");
 
 function timeGreeting() {
   const hour = new Date().getHours();
@@ -89,11 +89,12 @@ export default function HomeScreen({ navigation }: any) {
   };
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: 24 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: 28 }}>
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.greeting}>{greeting}</Text>
           <Text style={styles.name}>{firstName(displayName)}</Text>
+          <Text style={styles.headerSub}>Your health dashboard is ready.</Text>
         </View>
         <Pressable onPress={() => navigation.navigate("Settings")} style={styles.avatar}>
           <Text style={{ color: colors.primary, fontFamily: fonts.bodySemiBold }}>{avatarInitials}</Text>
@@ -101,31 +102,66 @@ export default function HomeScreen({ navigation }: any) {
         </Pressable>
       </View>
 
-      <Pressable onPress={() => navigation.navigate("Chat")} style={styles.checkinCard}>
-        <Text style={styles.checkinLabel}>Daily check-in</Text>
-        <Text style={styles.checkinPrompt}>How are you feeling today?</Text>
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-          <View style={styles.pillActive}><MessageCircle size={12} color={colors.primary} /><Text style={styles.pillActiveText}>Type</Text></View>
-          <View style={styles.pill}><Mic size={12} color={colors.inkSoft} /><Text style={styles.pillText}>Speak</Text></View>
+      <View style={styles.heroCard}>
+        <Image source={homeHeroImage} style={styles.heroImage} resizeMode="cover" />
+        <View style={styles.heroShade} />
+        <View style={styles.heroCopy}>
+          <View style={styles.heroBadge}>
+            <Sparkles size={13} color={colors.peach} />
+            <Text style={styles.heroBadgeText}>Today at a glance</Text>
+          </View>
+          <Text style={styles.heroTitle}>Keep your care moving, one small check-in at a time.</Text>
+          <Pressable onPress={() => navigation.navigate("Chat")} style={styles.heroButton}>
+            <MessageCircle size={14} color={colors.bg} />
+            <Text style={styles.heroButtonText}>Start check-in</Text>
+          </Pressable>
         </View>
-      </Pressable>
+      </View>
 
       <View style={styles.statsRow}>
-        <Card style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <Flame size={14} color={colors.peach} /><Text style={styles.statLabel}>Streak</Text>
+        <Card style={styles.statCard}>
+          <View style={styles.statTop}>
+            <View style={[styles.statIcon, { backgroundColor: colors.peachDim }]}><Flame size={14} color={colors.peach} /></View>
+            <Text style={styles.statLabel}>Activity</Text>
           </View>
           <Text style={styles.statValue}>{activities.length ? `${activities.length} logs` : "No logs"}</Text>
         </Card>
-        <Card style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <CalendarClock size={14} color={colors.primary} /><Text style={styles.statLabel}>Next dose</Text>
-          </View>
-          <Text style={styles.statValue}>Add meds</Text>
-        </Card>
+        <Pressable onPress={() => navigation.navigate("Meds")} style={{ flex: 1 }}>
+          <Card style={styles.statCard}>
+            <View style={styles.statTop}>
+              <View style={[styles.statIcon, { backgroundColor: colors.primaryDim }]}><CalendarClock size={14} color={colors.primary} /></View>
+              <Text style={styles.statLabel}>Medication</Text>
+            </View>
+            <Text style={styles.statValue}>Add meds</Text>
+          </Card>
+        </Pressable>
       </View>
 
-      <View style={{ paddingHorizontal: spacing.xl, marginTop: 24 }}>
+      <View style={styles.quickStrip}>
+        <Pressable onPress={() => navigation.navigate("Chat")} style={styles.quickAction}>
+          <View style={styles.quickIcon}><MessageCircle size={16} color={colors.primary} /></View>
+          <View style={styles.quickCopy}>
+            <Text style={styles.quickTitle}>Check in</Text>
+            <Text style={styles.quickSub}>Type or speak</Text>
+          </View>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate("Vitals")} style={styles.quickAction}>
+          <View style={styles.quickIcon}><Activity size={16} color={colors.mint} /></View>
+          <View style={styles.quickCopy}>
+            <Text style={styles.quickTitle}>Vitals</Text>
+            <Text style={styles.quickSub}>Log weekly</Text>
+          </View>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate("LabUpload")} style={styles.quickAction}>
+          <View style={styles.quickIcon}><FileText size={16} color={colors.peach} /></View>
+          <View style={styles.quickCopy}>
+            <Text style={styles.quickTitle}>Labs</Text>
+            <Text style={styles.quickSub}>Upload</Text>
+          </View>
+        </Pressable>
+      </View>
+
+      <View style={styles.sectionWrap}>
         <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
         <Card style={styles.activityCard}>
           {activities.length === 0 ? (
@@ -157,15 +193,15 @@ export default function HomeScreen({ navigation }: any) {
           )}
         </Card>
 
-        <Text style={[styles.sectionLabel, { marginTop: 20 }]}>SHORTCUTS</Text>
+        <Text style={[styles.sectionLabel, { marginTop: 20 }]}>CARE TOOLS</Text>
         <View style={styles.shortcutPanel}>
-          {shortcuts.map((item, index) => {
+          {shortcuts.map((item) => {
             const Icon = item.icon;
             return (
               <Pressable
                 key={item.route}
                 onPress={() => navigation.navigate(item.route)}
-                style={[styles.shortcutRow, index === shortcuts.length - 1 && { borderBottomWidth: 0 }]}
+                style={styles.shortcutRow}
               >
                 <View style={[styles.shortcutIcon, { backgroundColor: `${item.color}16` }]}>
                   <Icon size={17} color={item.color} />
@@ -174,7 +210,6 @@ export default function HomeScreen({ navigation }: any) {
                   <Text style={styles.shortcutText} numberOfLines={1}>{item.label}</Text>
                   <Text style={styles.shortcutDetail} numberOfLines={1}>{item.detail}</Text>
                 </View>
-                <ChevronRight size={15} color={colors.inkFaint} />
               </Pressable>
             );
           })}
@@ -188,18 +223,31 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: 56 },
   greeting: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5 },
   name: { color: colors.ink, fontFamily: fonts.display, fontSize: 25 },
+  headerSub: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, marginTop: 3 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
   avatarBadge: { position: "absolute", right: -1, bottom: -1, width: 16, height: 16, borderRadius: 8, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.bg },
-  checkinCard: { marginHorizontal: spacing.xl, marginTop: 18, backgroundColor: colors.surface, borderRadius: radius.xl, padding: 22, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
-  checkinLabel: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
-  checkinPrompt: { color: colors.ink, fontFamily: fonts.display, fontSize: 20, marginTop: 6 },
-  pill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: 14 },
-  pillText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11.5 },
-  pillActive: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primaryDim, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: 14 },
-  pillActiveText: { color: colors.primary, fontFamily: fonts.body, fontSize: 11.5 },
+  heroCard: { height: 226, marginHorizontal: spacing.xl, marginTop: 18, borderRadius: 16, overflow: "hidden", backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, shadowColor: "#0F172A", shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 4 },
+  heroImage: { width: "100%", height: "100%" },
+  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(16,32,51,0.08)" },
+  heroCopy: { position: "absolute", left: 14, right: 14, bottom: 14, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 12, padding: 14 },
+  heroBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: colors.peachDim, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 },
+  heroBadgeText: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
+  heroTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 20, lineHeight: 26, maxWidth: 310 },
+  heroButton: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12 },
+  heroButtonText: { color: colors.bg, fontFamily: fonts.bodySemiBold, fontSize: 12.5 },
   statsRow: { flexDirection: "row", gap: 12, paddingHorizontal: spacing.xl, marginTop: 12 },
+  statCard: { flex: 1, minHeight: 92, justifyContent: "space-between" },
+  statTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  statIcon: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   statLabel: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11 },
   statValue: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 21 },
+  quickStrip: { flexDirection: "row", gap: 8, paddingHorizontal: spacing.xl, marginTop: 12 },
+  quickAction: { flex: 1, minHeight: 74, backgroundColor: colors.surface, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 10, paddingVertical: 10, justifyContent: "space-between" },
+  quickIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  quickCopy: { flex: 1 },
+  quickTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13 },
+  quickSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 2 },
+  sectionWrap: { paddingHorizontal: spacing.xl, marginTop: 24 },
   sectionLabel: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 10 },
   activityCard: { paddingVertical: 4, paddingHorizontal: 14 },
   emptyActivity: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
@@ -208,10 +256,10 @@ const styles = StyleSheet.create({
   activityRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
   activityTitle: { color: colors.ink, fontFamily: fonts.body, fontSize: 13 },
   activitySub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 2, lineHeight: 15 },
-  shortcutPanel: { backgroundColor: colors.surface, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, overflow: "hidden" },
-  shortcutRow: { flexDirection: "row", alignItems: "center", minHeight: 58, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
-  shortcutIcon: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center", marginRight: 11 },
-  shortcutCopy: { flex: 1, paddingRight: 8 },
+  shortcutPanel: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  shortcutRow: { width: "48.4%", minHeight: 104, backgroundColor: colors.surface, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 12, justifyContent: "space-between" },
+  shortcutIcon: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  shortcutCopy: { flex: 1 },
   shortcutText: { color: colors.ink, fontFamily: fonts.bodyMedium, fontSize: 13 },
   shortcutDetail: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 2 },
 });
