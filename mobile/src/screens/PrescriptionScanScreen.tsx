@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, Image, ScrollView, StyleSheet } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, View, Text, TextInput, Image, ScrollView, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
@@ -14,6 +14,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3
 // OCR output is ALWAYS shown as an editable draft here — nothing is
 // saved to medications until the user explicitly confirms each field.
 export default function PrescriptionScanScreen({ navigation, route }: any) {
+  const launchedInitialPicker = useRef(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [draft, setDraft] = useState<{ drugName: string; dose: string; frequency: string; note: string | null } | null>(null);
@@ -22,16 +23,47 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
   const [awaitingAvailability, setAwaitingAvailability] = useState(false);
 
   useEffect(() => {
-    if (route?.params?.source === "camera") pickImage(true);
-    if (route?.params?.source === "library") pickImage(false);
+    if (launchedInitialPicker.current) return;
+    if (route?.params?.source !== "camera" && route?.params?.source !== "library") return;
+    launchedInitialPicker.current = true;
+    const timer = setTimeout(() => pickImage(route.params.source === "camera"), 350);
+    return () => clearTimeout(timer);
   }, [route?.params?.source]);
 
   const pickImage = async (fromCamera: boolean) => {
-    const picker = fromCamera ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
-    const result = await picker({ base64: true, quality: 0.7 });
-    if (result.canceled) return;
-    setImageUri(result.assets[0].uri);
-    await scan(result.assets[0].base64!);
+    try {
+      const permission = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          fromCamera ? "Camera access needed" : "Photo access needed",
+          fromCamera
+            ? "Please allow camera access to take a prescription photo."
+            : "Please allow photo access to upload a prescription image."
+        );
+        return;
+      }
+
+      const picker = fromCamera ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
+      const result = await picker({ base64: true, quality: 0.7 });
+      if (result.canceled) return;
+
+      const asset = result.assets?.[0];
+      if (!asset?.uri) {
+        setDraft({ drugName: "", dose: "", frequency: "", note: "We couldn't open that image. You can enter the medication details manually." });
+        return;
+      }
+
+      setImageUri(asset.uri);
+      if (!asset.base64) {
+        setDraft({ drugName: "", dose: "", frequency: "", note: "We couldn't read that image automatically. Please enter the details manually." });
+        return;
+      }
+      await scan(asset.base64);
+    } catch {
+      setDraft({ drugName: "", dose: "", frequency: "", note: "The image picker could not open. Please try again or enter details manually." });
+    }
   };
 
   const scan = async (imageBase64: string) => {
@@ -43,8 +75,9 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ imageBase64 }),
       });
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      setDraft({ drugName: data.drugName, dose: data.dose, frequency: data.frequency, note: data.note });
+      setDraft({ drugName: data?.drugName || "", dose: data?.dose || "", frequency: data?.frequency || "", note: data?.note || null });
     } catch {
       setDraft({ drugName: "", dose: "", frequency: "", note: "Couldn't reach the scanner — please enter details manually." });
     } finally {
