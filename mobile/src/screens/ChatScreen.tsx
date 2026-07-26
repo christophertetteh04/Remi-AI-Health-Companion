@@ -1,8 +1,8 @@
 import React, { useState, useRef } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
-import { colors, radius, fonts, urgencyColor } from "../theme/tokens";
-import { Send, Mic, Square } from "lucide-react-native";
-import { sendCheckinMessage } from "../services/api";
+import { colors, fonts, urgencyColor } from "../theme/tokens";
+import { Send, Mic, Square, Trash2 } from "lucide-react-native";
+import { type CheckinTopic, sendCheckinMessage } from "../services/api";
 import { startRecording, stopRecordingAndTranscribe, cancelRecording } from "../services/voiceRecording";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
@@ -10,13 +10,17 @@ import * as SecureStore from "expo-secure-store";
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 type Msg = { from: "user" | "bot"; text: string; urgency?: "normal" | "monitor" | "urgent" };
+const initialMessages: Msg[] = [{ from: "bot", text: "How are you feeling today, Ama?" }];
+const sexualHealthPrompt =
+  "We can talk about STI symptoms, testing, contraception, periods, pregnancy concerns, or reproductive health. I won't diagnose you. What are you noticing, and when did it start?";
 
 export default function ChatScreen({ navigation }: any) {
-  const [messages, setMessages] = useState<Msg[]>([{ from: "bot", text: "How are you feeling today, Ama?" }]);
+  const [messages, setMessages] = useState<Msg[]>(initialMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [checkinTopic, setCheckinTopic] = useState<CheckinTopic>("general");
   const scrollRef = useRef<ScrollView>(null);
 
   const send = async () => {
@@ -27,7 +31,7 @@ export default function ChatScreen({ navigation }: any) {
     setInput("");
     setLoading(true);
     try {
-      const res = await sendCheckinMessage(input, next.map(({ from, text }) => ({ from, text })));
+      const res = await sendCheckinMessage(input, next.map(({ from, text }) => ({ from, text })), checkinTopic);
       if (res.crisisDetected) {
         navigation.navigate("Crisis");
         return;
@@ -39,6 +43,27 @@ export default function ChatScreen({ navigation }: any) {
       setLoading(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
+  };
+
+  const startSexualHealthCheckin = () => {
+    if (checkinTopic === "sexual_health") return;
+    setCheckinTopic("sexual_health");
+    setMessages((prev) => [
+      ...prev,
+      { from: "user", text: "Sexual health" },
+      { from: "bot", text: sexualHealthPrompt },
+    ]);
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+  };
+
+  const deleteChat = () => {
+    cancelRecording();
+    setRecording(false);
+    setTranscribing(false);
+    setLoading(false);
+    setInput("");
+    setCheckinTopic("general");
+    setMessages(initialMessages);
   };
 
   const capturePhoto = async () => {
@@ -119,6 +144,9 @@ export default function ChatScreen({ navigation }: any) {
           </View>
         )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          <Pressable onPress={startSexualHealthCheckin} style={[styles.attachChip, checkinTopic === "sexual_health" && styles.topicChipActive]}>
+            <Text style={[styles.attachChipText, checkinTopic === "sexual_health" && styles.topicChipTextActive]}>Sexual health</Text>
+          </Pressable>
           <Pressable onPress={capturePhoto} style={styles.attachChip}>
             <Text style={styles.attachChipText}>📷 Add photo</Text>
           </Pressable>
@@ -131,6 +159,12 @@ export default function ChatScreen({ navigation }: any) {
           <Pressable onPress={() => navigation.navigate("ImagingUpload")} style={styles.attachChip}>
             <Text style={styles.attachChipText}>🩻 Add scan</Text>
           </Pressable>
+          {checkinTopic === "sexual_health" && (
+            <Pressable onPress={deleteChat} style={styles.deleteChip}>
+              <Trash2 size={13} color={colors.urgent} />
+              <Text style={styles.deleteChipText}>Delete chat</Text>
+            </Pressable>
+          )}
         </ScrollView>
         <View style={styles.inputRow}>
           <Pressable
@@ -164,6 +198,10 @@ const styles = StyleSheet.create({
   recordingText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11.5 },
   attachChip: { alignSelf: "flex-start", backgroundColor: colors.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8, marginLeft: 2 },
   attachChipText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11 },
+  topicChipActive: { backgroundColor: colors.mintDim },
+  topicChipTextActive: { color: colors.mint },
+  deleteChip: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.urgentDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8, marginLeft: 2 },
+  deleteChipText: { color: colors.urgent, fontFamily: fonts.body, fontSize: 11, marginLeft: 6 },
   inputRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 6, gap: 8 },
   micBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
   input: { flex: 1, color: colors.ink, fontFamily: fonts.body, fontSize: 13 },

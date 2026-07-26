@@ -69,11 +69,11 @@ export default function MedsScreen() {
 }
 
 const styles = StyleSheet.create({
-  pillIcon: { width: 40, height: 40, borderRadius: 16, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
+  pillIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
   medName: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 14 },
   medTime: { color: colors.inkFaint, fontFamily: fonts.mono, fontSize: 11 },
   medNote: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11.5, marginTop: 2 },
   takenBtn: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surfaceRaised, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginTop: 10, alignSelf: "flex-start" },
-  allergyNote: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.peachDim, borderRadius: 22, padding: 16, marginTop: 4 },
-  allergyText: { color: "#F0D2B8", fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
+  allergyNote: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.peachDim, borderRadius: 12, padding: 16, marginTop: 4 },
+  allergyText: { color: colors.peach, fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
 });

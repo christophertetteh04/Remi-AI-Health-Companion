@@ -6,7 +6,6 @@ import { PrimaryButton } from "../components/UI";
 import { Check, Lock } from "lucide-react-native";
 import { useAppLock } from "../hooks/useAppLock";
 
-// No splash/branding screen — this is the very first screen the user sees.
 export default function OnboardingScreen({ navigation }: any) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -17,9 +16,10 @@ export default function OnboardingScreen({ navigation }: any) {
   const [lockOn, setLockOn] = useState(false);
 
   const finish = async () => {
+    if (!consent || !terms) return;
     if (lockOn) await enableLock();
     await SecureStore.setItemAsync("remi_onboarded", "true");
-    navigation.replace("Main");
+    navigation.replace("Welcome");
   };
 
   if (step === 0) {
@@ -84,13 +84,13 @@ export default function OnboardingScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 32, paddingTop: 64, paddingBottom: 36, justifyContent: "space-between" },
-  h1: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 36, lineHeight: 42 },
-  h1Small: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 28, marginBottom: 20 },
+  h1: { color: colors.ink, fontFamily: fonts.display, fontSize: 34, lineHeight: 41 },
+  h1Small: { color: colors.ink, fontFamily: fonts.display, fontSize: 27, marginBottom: 20 },
   body: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 14.5, marginTop: 16, lineHeight: 21 },
-  disclaimer: { backgroundColor: colors.peachDim, borderRadius: 18, padding: 14, marginBottom: 18 },
-  disclaimerText: { color: "#F0D2B8", fontFamily: fonts.body, fontSize: 12, lineHeight: 17 },
-  input: { backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 10 },
-  checkRow: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 10 },
+  disclaimer: { backgroundColor: colors.peachDim, borderRadius: 12, padding: 14, marginBottom: 18 },
+  disclaimerText: { color: colors.peach, fontFamily: fonts.body, fontSize: 12, lineHeight: 17 },
+  input: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 10 },
+  checkRow: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 14, marginBottom: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: colors.hairline, alignItems: "center", justifyContent: "center", marginRight: 12, marginTop: 1 },
   checkText: { flex: 1, color: colors.ink, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
 });

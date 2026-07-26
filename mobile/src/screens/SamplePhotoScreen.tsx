@@ -96,11 +96,11 @@ export default function SamplePhotoScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  preview: { width: "100%", height: 200, borderRadius: 18, marginTop: 16 },
+  preview: { width: "100%", height: 200, borderRadius: 12, marginTop: 16 },
   loading: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5, marginTop: 12 },
   description: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
   deleteRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 16, paddingVertical: 8 },
   deleteText: { color: colors.urgent, fontFamily: fonts.body, fontSize: 12.5, marginLeft: 6 },
-  urgentTitle: { color: "#5C1A0F", fontFamily: fonts.displayItalic, fontSize: 24, marginTop: 16, marginBottom: 10 },
-  urgentBody: { color: "#5C1A0F", fontFamily: fonts.body, fontSize: 13.5, lineHeight: 20, marginBottom: 10 },
+  urgentTitle: { color: colors.urgent, fontFamily: fonts.display, fontSize: 23, marginTop: 16, marginBottom: 10 },
+  urgentBody: { color: colors.ink, fontFamily: fonts.body, fontSize: 13.5, lineHeight: 20, marginBottom: 10 },
 });

@@ -76,5 +76,5 @@ export default function EmergencySettingsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   label: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 10.5, marginBottom: 6 },
-  input: { backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14 },
+  input: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14 },
 });

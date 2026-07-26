@@ -99,14 +99,14 @@ export default function LabUploadScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  preview: { width: "100%", height: 200, borderRadius: 18, marginTop: 16, marginBottom: 8 },
+  preview: { width: "100%", height: 200, borderRadius: 12, marginTop: 16, marginBottom: 8 },
   loading: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5, marginTop: 12 },
   error: { color: colors.urgent, fontFamily: fonts.body, fontSize: 12.5, marginTop: 12 },
-  testType: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 20 },
+  testType: { color: colors.ink, fontFamily: fonts.display, fontSize: 19 },
   explanation: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
   resultRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
   resultName: { color: colors.ink, fontFamily: fonts.body, fontSize: 12.5 },
   resultValue: { fontFamily: fonts.mono, fontSize: 12.5 },
-  comparisonCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.peachDim, borderRadius: 18, padding: 14, marginTop: 14 },
-  comparisonText: { color: "#F0D2B8", fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
+  comparisonCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.peachDim, borderRadius: 12, padding: 14, marginTop: 14 },
+  comparisonText: { color: colors.peach, fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
 });

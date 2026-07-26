@@ -1,4 +1,4 @@
-import { IsArray, IsString } from "class-validator";
+import { IsArray, IsIn, IsOptional, IsString } from "class-validator";
 
 export class HistoryItem {
   from: "user" | "bot";
@@ -11,4 +11,8 @@ export class SendMessageDto {
 
   @IsArray()
   history: HistoryItem[];
+
+  @IsOptional()
+  @IsIn(["general", "sexual_health"])
+  topic?: "general" | "sexual_health";
 }

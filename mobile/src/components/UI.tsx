@@ -40,6 +40,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   primaryBtn: {
     backgroundColor: colors.primary,
@@ -54,7 +61,9 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
   },
   ghostBtn: {
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
     borderRadius: radius.pill,
     paddingVertical: 14,
     alignItems: "center",
@@ -66,6 +75,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  h1: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 28 },
+  h1: { color: colors.ink, fontFamily: fonts.display, fontSize: 26, letterSpacing: 0 },
   subtitle: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 13.5, marginTop: 4 },
 });

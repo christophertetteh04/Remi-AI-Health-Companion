@@ -92,7 +92,7 @@ export default function ImagingUploadScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  preview: { width: "100%", height: 200, borderRadius: 18, marginTop: 16 },
+  preview: { width: "100%", height: 200, borderRadius: 12, marginTop: 16 },
   loading: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5, marginTop: 12 },
   text: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
   hint: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 20, lineHeight: 16 },

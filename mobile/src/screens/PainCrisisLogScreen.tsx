@@ -66,6 +66,6 @@ const styles = StyleSheet.create({
   label: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 10 },
   severityRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   severityDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  input: { backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 13.5, marginBottom: 10 },
-  urgentText: { color: "#5C1A0F", fontFamily: fonts.body, fontSize: 15, lineHeight: 22, marginTop: 20 },
+  input: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 13.5, marginBottom: 10 },
+  urgentText: { color: colors.ink, fontFamily: fonts.body, fontSize: 15, lineHeight: 22, marginTop: 20 },
 });

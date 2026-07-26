@@ -24,6 +24,6 @@ export default function LockScreen({ onUnlock }: { onUnlock: () => Promise<boole
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
   iconWrap: { width: 64, height: 64, borderRadius: 24, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginBottom: 20 },
-  title: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 24, marginBottom: 8 },
+  title: { color: colors.ink, fontFamily: fonts.display, fontSize: 23, marginBottom: 8 },
   body: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 13.5, textAlign: "center", lineHeight: 19 },
 });

@@ -37,7 +37,7 @@ export default function CrisisScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   iconWrap: { width: 52, height: 52, borderRadius: 20, backgroundColor: colors.urgentDim, alignItems: "center", justifyContent: "center", marginBottom: 24 },
-  title: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 26, marginBottom: 12, lineHeight: 32 },
+  title: { color: colors.ink, fontFamily: fonts.display, fontSize: 25, marginBottom: 12, lineHeight: 31 },
   body: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 14.5, lineHeight: 21, marginBottom: 20 },
   card: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, marginBottom: 12 },
   cardTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.5 },

@@ -144,10 +144,10 @@ export default function PrescriptionScanScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  preview: { width: "100%", height: 200, borderRadius: 18, marginTop: 16, marginBottom: 8 },
+  preview: { width: "100%", height: 200, borderRadius: 12, marginTop: 16, marginBottom: 8 },
   loading: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5, marginTop: 12 },
   label: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 12 },
-  warning: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.peachDim, borderRadius: 16, padding: 14, marginBottom: 14 },
-  warningText: { color: "#F0D2B8", fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
-  input: { backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 10 },
+  warning: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.peachDim, borderRadius: 12, padding: 14, marginBottom: 14 },
+  warningText: { color: colors.peach, fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
+  input: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 10 },
 });

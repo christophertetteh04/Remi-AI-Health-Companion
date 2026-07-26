@@ -8,6 +8,6 @@ export class CheckinsController {
 
   @Post("message")
   async sendMessage(@Body() dto: SendMessageDto) {
-    return this.checkinsService.handleMessage(dto.message, dto.history);
+    return this.checkinsService.handleMessage(dto.message, dto.history, dto.topic);
   }
 }

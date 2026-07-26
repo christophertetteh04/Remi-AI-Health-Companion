@@ -75,9 +75,9 @@ const styles = StyleSheet.create({
   emergencyHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   emergencyLabel: { color: colors.urgent, fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
-  rowKey: { color: "#E3A79B", fontFamily: fonts.body, fontSize: 12 },
+  rowKey: { color: colors.urgent, fontFamily: fonts.body, fontSize: 12 },
   rowVal: { color: colors.ink, fontFamily: fonts.bodyMedium, fontSize: 12 },
-  emptyText: { color: "#E3A79B", fontFamily: fonts.body, fontSize: 12.5 },
+  emptyText: { color: colors.urgent, fontFamily: fonts.body, fontSize: 12.5 },
   cardTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.5 },
   cardSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 2 },
 });

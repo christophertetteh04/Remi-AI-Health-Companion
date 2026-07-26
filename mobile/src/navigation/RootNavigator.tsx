@@ -7,6 +7,7 @@ import { colors } from "../theme/tokens";
 
 import AuthScreen from "../screens/AuthScreen";
 import OnboardingScreen from "../screens/OnboardingScreen";
+import WelcomeAnimationScreen from "../screens/WelcomeAnimationScreen";
 import HomeScreen from "../screens/HomeScreen";
 import ChatScreen from "../screens/ChatScreen";
 import MedsScreen from "../screens/MedsScreen";
@@ -27,6 +28,7 @@ import LifestyleScreen from "../screens/LifestyleScreen";
 import PreventiveCareScreen from "../screens/PreventiveCareScreen";
 import FirstAidScreen from "../screens/FirstAidScreen";
 import DailyInsightsScreen from "../screens/DailyInsightsScreen";
+import SettingsScreen from "../screens/SettingsScreen";
 import { navigationRef } from "./navigationRef";
 
 const Stack = createNativeStackNavigator();
@@ -37,7 +39,13 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.hairline },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.hairline,
+          height: 62,
+          paddingTop: 6,
+          paddingBottom: 8,
+        },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.inkFaint,
       }}
@@ -58,7 +66,9 @@ export default function RootNavigator({ hasSession, onboarded }: { hasSession: b
       <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
         <Stack.Screen name="Auth" component={AuthScreen} />
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="Welcome" component={WelcomeAnimationScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="PrescriptionScan" component={PrescriptionScanScreen} options={{ presentation: "modal" }} />
         <Stack.Screen name="EmergencySettings" component={EmergencySettingsScreen} options={{ presentation: "modal" }} />
         <Stack.Screen name="LabUpload" component={LabUploadScreen} options={{ presentation: "modal" }} />

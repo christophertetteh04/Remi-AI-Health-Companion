@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { colors, radius, spacing, fonts } from "../theme/tokens";
 import { Card, UrgencyDot } from "../components/UI";
-import { MessageCircle, Mic, Flame, CalendarClock, Sparkles } from "lucide-react-native";
+import { MessageCircle, Mic, Flame, CalendarClock, Sparkles, Settings } from "lucide-react-native";
 
 export default function HomeScreen({ navigation }: any) {
   return (
@@ -12,7 +12,10 @@ export default function HomeScreen({ navigation }: any) {
           <Text style={styles.greeting}>Good morning</Text>
           <Text style={styles.name}>Ama</Text>
         </View>
-        <View style={styles.avatar}><Text style={{ color: colors.primary, fontFamily: fonts.displayItalic }}>AO</Text></View>
+        <Pressable onPress={() => navigation.navigate("Settings")} style={styles.avatar}>
+          <Text style={{ color: colors.primary, fontFamily: fonts.bodySemiBold }}>AO</Text>
+          <View style={styles.avatarBadge}><Settings size={9} color={colors.bg} /></View>
+        </Pressable>
       </View>
 
       <Pressable onPress={() => navigation.navigate("Chat")} style={styles.checkinCard}>
@@ -86,18 +89,19 @@ export default function HomeScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: 56 },
   greeting: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5 },
-  name: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 26 },
+  name: { color: colors.ink, fontFamily: fonts.display, fontSize: 25 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  checkinCard: { marginHorizontal: spacing.xl, marginTop: 18, backgroundColor: colors.surfaceRaised, borderRadius: radius.xl, padding: 22 },
-  checkinLabel: { color: colors.primary, fontFamily: fonts.body, fontSize: 11.5 },
-  checkinPrompt: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 21, marginTop: 6 },
+  avatarBadge: { position: "absolute", right: -1, bottom: -1, width: 16, height: 16, borderRadius: 8, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.bg },
+  checkinCard: { marginHorizontal: spacing.xl, marginTop: 18, backgroundColor: colors.surface, borderRadius: radius.xl, padding: 22, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
+  checkinLabel: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
+  checkinPrompt: { color: colors.ink, fontFamily: fonts.display, fontSize: 20, marginTop: 6 },
   pill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: 14 },
   pillText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11.5 },
   pillActive: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primaryDim, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: 14 },
   pillActiveText: { color: colors.primary, fontFamily: fonts.body, fontSize: 11.5 },
   statsRow: { flexDirection: "row", gap: 12, paddingHorizontal: spacing.xl, marginTop: 12 },
   statLabel: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11 },
-  statValue: { color: colors.ink, fontFamily: fonts.mono, fontSize: 22 },
+  statValue: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 21 },
   sectionLabel: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 10 },
   activityRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
   activityTitle: { color: colors.ink, fontFamily: fonts.body, fontSize: 13 },

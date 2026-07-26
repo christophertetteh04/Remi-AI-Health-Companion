@@ -7,11 +7,17 @@ async function authHeader() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function sendCheckinMessage(message: string, history: { from: string; text: string }[]) {
+export type CheckinTopic = "general" | "sexual_health";
+
+export async function sendCheckinMessage(
+  message: string,
+  history: { from: string; text: string }[],
+  topic: CheckinTopic = "general",
+) {
   const res = await fetch(`${API_BASE_URL}/checkins/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, topic }),
   });
   if (!res.ok) throw new Error(`Check-in request failed: ${res.status}`);
   return res.json(); // { reply: string, urgency: 'normal'|'monitor'|'urgent', crisisDetected: boolean }

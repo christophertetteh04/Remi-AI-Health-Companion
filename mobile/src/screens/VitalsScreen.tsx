@@ -51,7 +51,7 @@ export default function VitalsScreen() {
 
 const styles = StyleSheet.create({
   label: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 12 },
-  inputBox: { flex: 1, backgroundColor: colors.surface, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14 },
+  inputBox: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14 },
   inputLabel: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 10 },
   inputValue: { color: colors.ink, fontFamily: fonts.mono, fontSize: 16, marginTop: 4, padding: 0 },
 });

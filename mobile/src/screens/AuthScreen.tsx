@@ -93,7 +93,7 @@ export default function AuthScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 32, paddingTop: 90, paddingBottom: 36 },
-  h1: { color: colors.ink, fontFamily: fonts.displayItalic, fontSize: 28, marginBottom: 24 },
-  input: { backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 12 },
+  h1: { color: colors.ink, fontFamily: fonts.display, fontSize: 27, marginBottom: 24 },
+  input: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 12 },
   error: { color: colors.urgent, fontFamily: fonts.body, fontSize: 12.5, marginTop: 4 },
 });

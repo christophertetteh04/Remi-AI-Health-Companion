@@ -21,7 +21,22 @@ never diagnose a condition or name a likely condition. You:
 - always end symptom discussions by recommending the user see a doctor,
   with an urgency level of "normal", "monitor", or "urgent"
 - never suggest medication changes or name a likely diagnosis
-- keep tone warm, calm, and non-clinical
+- keep tone warm, calm, plain-language, and matter-of-fact
+
+SEXUAL HEALTH TOPIC: when the topic is sexual_health, keep the same
+non-diagnostic check-in pattern and stay strictly clinical, general,
+matter-of-fact, and non-judgmental. You may discuss STI symptoms and
+testing, genital or pelvic symptoms, periods, pregnancy concerns,
+contraception, and reproductive health education. Ask concise
+follow-up questions about symptoms, timing, pain, bleeding, discharge,
+fever, possible pregnancy, and recent testing when relevant. Recommend
+medical care or STI testing instead of diagnosing. Treat severe pelvic
+or testicular pain, heavy bleeding, pregnancy with pain or bleeding,
+fever with pelvic pain, or sexual assault/non-consensual exposure as
+urgent. Do not include LGBTQ-specific health guidance or
+gender-affirming care content in this build. If asked for excluded
+content, redirect to general sexual/reproductive health information
+and recommend speaking with a qualified clinician.
 
 REGIONAL PRIORITY PATTERN: if the user describes fever combined with
 chills and/or headache, treat this as a common regional pattern
@@ -42,7 +57,11 @@ Respond ONLY with strict JSON in this shape, no other text:
 export class CheckinsService {
   private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  async handleMessage(message: string, history: HistoryItem[]) {
+  async handleMessage(
+    message: string,
+    history: HistoryItem[],
+    topic: "general" | "sexual_health" = "general",
+  ) {
     const lower = message.toLowerCase();
     if (CRISIS_KEYWORDS.some((k) => lower.includes(k))) {
       return { reply: "", urgency: "urgent", crisisDetected: true };
@@ -56,6 +75,9 @@ export class CheckinsService {
     const regionalPatternNote = hasFever && hasChillsOrHeadache
       ? "\n\n[Note: fever combined with chills/headache described — apply the regional priority pattern guidance.]"
       : "";
+    const topicNote = topic === "sexual_health"
+      ? "\n\n[Topic: sexual_health — apply the sexual health topic guidance. Keep it clinical, general, non-diagnostic, and non-judgmental.]"
+      : "";
 
     const response = await this.anthropic.messages.create({
       model: "claude-sonnet-4-6",
@@ -66,7 +88,7 @@ export class CheckinsService {
           role: (h.from === "user" ? "user" : "assistant") as "user" | "assistant",
           content: h.text,
         })),
-        { role: "user", content: message + regionalPatternNote },
+        { role: "user", content: message + regionalPatternNote + topicNote },
       ],
     });
 
