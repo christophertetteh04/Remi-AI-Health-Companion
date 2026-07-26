@@ -166,6 +166,28 @@ export async function scheduleAnnualCheckupReminder(lastVisitISODate: string) {
   return id;
 }
 
+export async function scheduleKidneyLabReminder(nextLabISODate: string) {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const target = new Date(nextLabISODate);
+  if (Number.isNaN(target.getTime())) return null;
+  target.setHours(9, 0, 0, 0);
+
+  const existing = await SecureStore.getItemAsync("remi_kidney_lab_reminder_id");
+  if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: { title: "Remi reminder", body: "Your kidney lab follow-up is due today.", data: { type: "lab", condition: "kidney" } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
+  });
+  await SecureStore.setItemAsync("remi_kidney_lab_reminder_id", id);
+  return id;
+}
+
 export async function scheduleDentalVisionReminder() {
   const Notifications = await getNotifications();
   if (!Notifications) return null;

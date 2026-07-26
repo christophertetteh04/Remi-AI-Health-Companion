@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { colors, fonts, urgencyColor } from "../theme/tokens";
-import { HeartPulse, Send, Mic, ShieldCheck, Square, Trash2 } from "lucide-react-native";
+import { Camera, FileText, FlaskConical, HeartPulse, Mic, ScanLine, Send, ShieldCheck, Sparkles, Square, Trash2, Venus } from "lucide-react-native";
 import { type CheckinTopic, sendCheckinMessage } from "../services/api";
 import { startRecording, stopRecordingAndTranscribe, cancelRecording } from "../services/voiceRecording";
 import * as ImagePicker from "expo-image-picker";
@@ -44,6 +44,12 @@ export default function ChatScreen({ navigation }: any) {
   const [transcribing, setTranscribing] = useState(false);
   const [checkinTopic, setCheckinTopic] = useState<CheckinTopic>("general");
   const scrollRef = useRef<ScrollView>(null);
+
+  const suggestedPrompts = [
+    "I have a headache and feel tired",
+    "Help me understand my symptoms",
+    "Remind me what to track today",
+  ];
 
   const send = async () => {
     if (!input.trim()) return;
@@ -155,6 +161,20 @@ export default function ChatScreen({ navigation }: any) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
     >
+      <View style={styles.header}>
+        <View style={styles.headerMark}>
+          <HeartPulse size={20} color={colors.bg} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>Remi Chat</Text>
+          <Text style={styles.headerSub}>Private health companion</Text>
+        </View>
+        <View style={styles.headerStatus}>
+          <View style={styles.statusDot} />
+          <Text style={styles.headerStatusText}>Online</Text>
+        </View>
+      </View>
+
       <ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
@@ -162,6 +182,16 @@ export default function ChatScreen({ navigation }: any) {
         keyboardShouldPersistTaps="handled"
       >
         <AnimatedGreetingCard accessedAt={accessedAt} />
+        {messages.length === 0 && (
+          <View style={styles.promptGrid}>
+            {suggestedPrompts.map((prompt) => (
+              <Pressable key={prompt} onPress={() => setInput(prompt)} style={styles.promptCard}>
+                <Sparkles size={14} color={colors.primary} />
+                <Text style={styles.promptText}>{prompt}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
         {messages.map((m, i) => (
           <MessageBubble key={`${m.createdAt}-${i}`} message={m} />
         ))}
@@ -176,21 +206,26 @@ export default function ChatScreen({ navigation }: any) {
             <Text style={[styles.recordingText, { marginLeft: 8 }]}>Transcribing…</Text>
           </View>
         )}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.attachRail}>
           <Pressable onPress={startSexualHealthCheckin} style={[styles.attachChip, checkinTopic === "sexual_health" && styles.topicChipActive]}>
+            <Venus size={13} color={checkinTopic === "sexual_health" ? colors.mint : colors.inkSoft} />
             <Text style={[styles.attachChipText, checkinTopic === "sexual_health" && styles.topicChipTextActive]}>Sexual health</Text>
           </Pressable>
           <Pressable onPress={capturePhoto} style={styles.attachChip}>
-            <Text style={styles.attachChipText}>📷 Add photo</Text>
+            <Camera size={13} color={colors.inkSoft} />
+            <Text style={styles.attachChipText}>Photo</Text>
           </Pressable>
           <Pressable onPress={() => navigation.navigate("LabUpload")} style={styles.attachChip}>
-            <Text style={styles.attachChipText}>📄 Add lab report</Text>
+            <FileText size={13} color={colors.inkSoft} />
+            <Text style={styles.attachChipText}>Lab report</Text>
           </Pressable>
           <Pressable onPress={() => navigation.navigate("SamplePhoto")} style={styles.attachChip}>
-            <Text style={styles.attachChipText}>🧪 Sample check</Text>
+            <FlaskConical size={13} color={colors.inkSoft} />
+            <Text style={styles.attachChipText}>Sample</Text>
           </Pressable>
           <Pressable onPress={() => navigation.navigate("ImagingUpload")} style={styles.attachChip}>
-            <Text style={styles.attachChipText}>🩻 Add scan</Text>
+            <ScanLine size={13} color={colors.inkSoft} />
+            <Text style={styles.attachChipText}>Scan</Text>
           </Pressable>
           {checkinTopic === "sexual_health" && (
             <Pressable onPress={deleteChat} style={styles.deleteChip}>
@@ -279,19 +314,26 @@ function MessageBubble({ message: m }: { message: Msg }) {
 
   return (
     <Animated.View style={{ opacity, transform: [{ scale }] }}>
-      <View>
-        <View style={[styles.bubble, m.from === "user" ? styles.bubbleUser : styles.bubbleBot]}>
-          <Text style={{ color: m.from === "user" ? colors.bg : colors.ink, fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19 }}>{m.text}</Text>
+      <View style={[styles.messageRow, m.from === "user" && styles.messageRowUser]}>
+        {m.from === "bot" && (
+          <View style={styles.messageAvatar}>
+            <HeartPulse size={13} color={colors.primary} />
+          </View>
+        )}
+        <View style={styles.messageBlock}>
+          <View style={[styles.bubble, m.from === "user" ? styles.bubbleUser : styles.bubbleBot]}>
+            <Text style={{ color: m.from === "user" ? colors.bg : colors.ink, fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19 }}>{m.text}</Text>
+          </View>
+          <Text style={[styles.timestamp, m.from === "user" ? styles.timestampUser : styles.timestampBot]}>
+            {formatMessageTime(m.createdAt)}
+          </Text>
+          {m.urgency && (
+            <View style={styles.urgencyBadge}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: urgencyColor(m.urgency), marginRight: 6 }} />
+              <Text style={{ color: colors.peach, fontFamily: fonts.body, fontSize: 10 }}>Recommend: see a doctor soon</Text>
+            </View>
+          )}
         </View>
-            <Text style={[styles.timestamp, m.from === "user" ? styles.timestampUser : styles.timestampBot]}>
-              {formatMessageTime(m.createdAt)}
-            </Text>
-            {m.urgency && (
-              <View style={styles.urgencyBadge}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: urgencyColor(m.urgency), marginRight: 6 }} />
-                <Text style={{ color: colors.peach, fontFamily: fonts.body, fontSize: 10 }}>Recommend: see a doctor soon</Text>
-              </View>
-            )}
       </View>
     </Animated.View>
   );
@@ -352,8 +394,15 @@ function RecordingBanner() {
 }
 
 const styles = StyleSheet.create({
-  messagesContent: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 16 },
-  greetingCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, marginBottom: 18, shadowColor: "#0F172A", shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingTop: 54, paddingBottom: 14, backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
+  headerMark: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  headerTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 16 },
+  headerSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 2 },
+  headerStatus: { flexDirection: "row", alignItems: "center", backgroundColor: colors.mintDim, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.mint, marginRight: 6 },
+  headerStatusText: { color: colors.mint, fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
+  messagesContent: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 16 },
+  greetingCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, marginBottom: 14, shadowColor: "#0F172A", shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
   greetingTop: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   remiMark: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 12, overflow: "hidden" },
   remiPulse: { position: "absolute", width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.14)" },
@@ -364,14 +413,21 @@ const styles = StyleSheet.create({
   greetingTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 22, lineHeight: 29 },
   greetingBody: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 8 },
   greetingTime: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 12 },
-  bubble: { maxWidth: "80%", borderRadius: 22, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 4 },
+  promptGrid: { gap: 8, marginBottom: 16 },
+  promptCard: { flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: colors.primaryDim, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  promptText: { color: colors.primary, fontFamily: fonts.bodyMedium, fontSize: 12.5, flex: 1 },
+  messageRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 2 },
+  messageRowUser: { justifyContent: "flex-end" },
+  messageAvatar: { width: 28, height: 28, borderRadius: 10, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 8, marginBottom: 20 },
+  messageBlock: { maxWidth: "82%" },
+  bubble: { borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, marginBottom: 4 },
   bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.primary, borderBottomRightRadius: 6 },
-  bubbleBot: { alignSelf: "flex-start", backgroundColor: colors.surface, borderBottomLeftRadius: 6 },
+  bubbleBot: { alignSelf: "flex-start", backgroundColor: colors.surface, borderBottomLeftRadius: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
   timestamp: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 10.5, marginBottom: 10 },
   timestampUser: { alignSelf: "flex-end", marginRight: 4 },
   timestampBot: { alignSelf: "flex-start", marginLeft: 4 },
   urgencyBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.peachDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 14, marginLeft: 4 },
-  composer: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 18 : 12, backgroundColor: colors.bg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
+  composer: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 18 : 12, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   recordingBanner: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingBottom: 8 },
   recordingDotWrap: { width: 18, height: 18, alignItems: "center", justifyContent: "center", marginRight: 6 },
   recordingPulse: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: colors.urgent },
@@ -379,14 +435,15 @@ const styles = StyleSheet.create({
   recordingText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11.5 },
   typingBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 13, marginBottom: 12 },
   typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.inkFaint },
-  attachChip: { alignSelf: "flex-start", backgroundColor: colors.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8, marginLeft: 2 },
-  attachChipText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11 },
+  attachRail: { gap: 8, paddingBottom: 10, paddingHorizontal: 2 },
+  attachChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: colors.bg, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 12, paddingVertical: 8 },
+  attachChipText: { color: colors.inkSoft, fontFamily: fonts.bodyMedium, fontSize: 11 },
   topicChipActive: { backgroundColor: colors.mintDim },
   topicChipTextActive: { color: colors.mint },
   deleteChip: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.urgentDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8, marginLeft: 2 },
   deleteChipText: { color: colors.urgent, fontFamily: fonts.body, fontSize: 11, marginLeft: 6 },
-  inputRow: { flexDirection: "row", alignItems: "flex-end", backgroundColor: colors.surface, borderRadius: 24, paddingHorizontal: 6, paddingVertical: 6, gap: 8 },
-  micBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", backgroundColor: colors.bg, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 6, paddingVertical: 6, gap: 8 },
+  micBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
   input: { flex: 1, maxHeight: 104, color: colors.ink, fontFamily: fonts.body, fontSize: 13, paddingTop: 9, paddingBottom: 9 },
-  sendBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
 });
