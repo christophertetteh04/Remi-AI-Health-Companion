@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Alert, View, Text, TextInput, Image, ScrollView, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { PrimaryButton, GhostButton, ScreenHeader } from "../components/UI";
 import { AlertTriangle } from "lucide-react-native";
 import { scheduleMedicationReminder } from "../services/notifications";
 import { addRecentActivity } from "../services/recentActivity";
+import { authHeader } from "../services/api";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -68,11 +68,10 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
 
   const scan = async (imageBase64: string) => {
     setScanning(true);
-    const token = await SecureStore.getItemAsync("remi_session_token");
     try {
       const res = await fetch(`${API_BASE_URL}/prescriptions/scan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({ imageBase64 }),
       });
       if (!res.ok) throw new Error();
@@ -88,14 +87,13 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
   const confirmAndSave = async () => {
     if (!draft) return;
     setSaving(true);
-    const token = await SecureStore.getItemAsync("remi_session_token");
     try {
       const [hourStr, minuteStr] = reminderTime.split(":");
       const hour = Number(hourStr) || 8;
       const minute = Number(minuteStr) || 0;
       const res = await fetch(`${API_BASE_URL}/medications`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({ name: draft.drugName, dose: draft.dose, frequency: draft.frequency, hour, minute, source: "ocr" }),
       });
       const saved = await res.json();

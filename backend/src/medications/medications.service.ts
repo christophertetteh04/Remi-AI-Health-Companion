@@ -1,9 +1,14 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { SupabaseService } from "../common/supabase.service";
+import { PosthogService } from "../common/posthog.service";
 
 @Injectable()
 export class MedicationsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    @Optional()
+    private readonly posthog?: PosthogService,
+  ) {}
 
   async listForUser(userId: string) {
     const { data, error } = await this.supabase.client
@@ -31,11 +36,21 @@ export class MedicationsService {
     return data;
   }
 
-  async logTaken(medicationId: string, takenAt: string) {
+  async logTaken(userId: string, medicationId: string, takenAt: string, analyticsEnabled = true) {
+    const { data: medication, error: medicationError } = await this.supabase.client
+      .from("medications")
+      .select("id")
+      .eq("id", medicationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (medicationError) throw medicationError;
+    if (!medication) throw new NotFoundException("Medication not found");
+
     const { data, error } = await this.supabase.client
       .from("medication_logs")
       .insert({ medication_id: medicationId, taken_at: takenAt });
     if (error) throw error;
+    this.posthog?.capture(userId, "medication_marked_taken", undefined, analyticsEnabled);
     return data;
   }
 

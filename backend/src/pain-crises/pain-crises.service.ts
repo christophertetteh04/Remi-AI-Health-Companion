@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { SupabaseService } from "../common/supabase.service";
 import { EncryptionService } from "../common/encryption.service";
+import { PosthogService } from "../common/posthog.service";
 
 // Severity threshold for urgent escalation is a DRAFT value pending
 // clinical advisor sign-off — do not treat as final. See flow doc
@@ -12,6 +13,8 @@ export class PainCrisesService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly encryption: EncryptionService,
+    @Optional()
+    private readonly posthog?: PosthogService,
   ) {}
 
   async listForUser(userId: string) {
@@ -24,7 +27,7 @@ export class PainCrisesService {
     return (data || []).map((row) => ({ ...row, trigger_note: this.encryption.decrypt(row.trigger_note) }));
   }
 
-  async log(userId: string, entry: { severity: number; triggerNote: string; location: string }) {
+  async log(userId: string, entry: { severity: number; triggerNote: string; location: string }, analyticsEnabled = true) {
     const tier = entry.severity >= URGENT_SEVERITY_THRESHOLD ? "urgent" : "normal";
 
     const { data, error } = await this.supabase.client
@@ -40,6 +43,7 @@ export class PainCrisesService {
       .single();
     if (error) throw error;
 
+    if (tier === "urgent") this.posthog?.capture(userId, "crisis_protocol_triggered", undefined, analyticsEnabled);
     return {
       ...data,
       tier,

@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
+import { PosthogService } from "../common/posthog.service";
 
 // A small starter list for the "unrecognized drug name" flag.
 // In production, replace this with a real drug reference source
@@ -10,6 +11,8 @@ const KNOWN_DRUGS = [
 
 @Injectable()
 export class PrescriptionsService {
+  constructor(@Optional() private readonly posthog?: PosthogService) {}
+
   // OCR call — plug in Google Cloud Vision or AWS Textract here.
   // Left as a clearly-marked stub since it needs your API credentials;
   // the parsing/confirmation logic around it is real and functional.
@@ -28,11 +31,12 @@ export class PrescriptionsService {
     );
   }
 
-  async extractDraft(imageBase64: string) {
+  async extractDraft(userId: string, imageBase64: string, analyticsEnabled = true) {
     let rawText = "";
     try {
       rawText = await this.runOcr(imageBase64);
     } catch (e) {
+      this.posthog?.capture(userId, "prescription_scanned", undefined, analyticsEnabled);
       // Fail safely into an empty draft rather than guessing —
       // the user fills the fields in manually via the confirmation UI.
       return {
@@ -58,6 +62,7 @@ export class PrescriptionsService {
     const drugNameGuess = drugLine.split(" ")[0]?.toLowerCase() || "";
     const knownDrug = KNOWN_DRUGS.includes(drugNameGuess);
 
+    this.posthog?.capture(userId, "prescription_scanned", undefined, analyticsEnabled);
     return {
       drugName: drugLine,
       dose: doseMatch?.[0] || "",

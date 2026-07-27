@@ -3,6 +3,7 @@ import { LifestyleService } from "./lifestyle.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { LogActivityDto, LogSleepDto, LogSubstanceUseDto, LogWeightDto } from "./dto/lifestyle.dto";
 
 @Controller("lifestyle")
 @UseGuards(AuthGuard)
@@ -16,22 +17,22 @@ export class LifestyleController {
   }
 
   @Post("sleep")
-  async logSleep(@CurrentUserId() userId: string, @Body() body: { hours: number; quality: string }) {
+  async logSleep(@CurrentUserId() userId: string, @Body() body: LogSleepDto) {
     return this.service.log(userId, "sleep", { hours: body.hours, quality: body.quality });
   }
 
   @Post("activity")
-  async logActivity(@CurrentUserId() userId: string, @Body() body: { activityType: string; minutes: number }) {
+  async logActivity(@CurrentUserId() userId: string, @Body() body: LogActivityDto) {
     return this.service.log(userId, "activity", { activityType: body.activityType, minutes: body.minutes });
   }
 
   @Post("weight")
-  async logWeight(@CurrentUserId() userId: string, @Body() body: { weightKg: number; heightCm?: number }) {
+  async logWeight(@CurrentUserId() userId: string, @Body() body: LogWeightDto) {
     return this.service.logWeight(userId, body.weightKg, body.heightCm);
   }
 
   @Post("substance-use")
-  async logSubstanceUse(@CurrentUserId() userId: string, @Body() body: { substance: string; note: string }) {
+  async logSubstanceUse(@CurrentUserId() userId: string, @Body() body: LogSubstanceUseDto) {
     return this.service.log(userId, "substance_use", { substance: body.substance, note: body.note });
   }
 }

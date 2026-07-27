@@ -33,6 +33,7 @@ import LifestyleScreen from "../screens/LifestyleScreen";
 import PreventiveCareScreen from "../screens/PreventiveCareScreen";
 import FirstAidScreen from "../screens/FirstAidScreen";
 import DailyInsightsScreen from "../screens/DailyInsightsScreen";
+import HealthOverviewScreen from "../screens/HealthOverviewScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import { navigationRef } from "./navigationRef";
 
@@ -93,6 +94,7 @@ export default function RootNavigator({ hasSession, onboarded }: { hasSession: b
         <Stack.Screen name="PreventiveCare" component={PreventiveCareScreen} />
         <Stack.Screen name="FirstAid" component={FirstAidScreen} />
         <Stack.Screen name="DailyInsights" component={DailyInsightsScreen} />
+        <Stack.Screen name="HealthOverview" component={HealthOverviewScreen} />
         <Stack.Screen name="Crisis" component={CrisisScreen} options={{ presentation: "fullScreenModal" }} />
       </Stack.Navigator>
     </NavigationContainer>

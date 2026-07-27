@@ -76,6 +76,7 @@ export default function HomeScreen({ navigation }: any) {
     { label: "Care", icon: CalendarCheck, route: "PreventiveCare", color: colors.primary },
     { label: "First aid", icon: ShieldPlus, route: "FirstAid", color: colors.urgent },
     { label: "Insights", icon: Sparkles, route: "DailyInsights", color: colors.peach },
+    { label: "Overview", icon: ClipboardList, route: "HealthOverview", color: colors.primary },
   ];
 
   const activityIcon = (type: RecentActivity["type"]) => {

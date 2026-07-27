@@ -3,6 +3,7 @@ import { WomensHealthService } from "./womens-health.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { LogCycleEntryDto, LogMenopauseEntryDto } from "./dto/womens-health.dto";
 
 @Controller("womens-health")
 @UseGuards(AuthGuard)
@@ -18,7 +19,7 @@ export class WomensHealthController {
   @Post("cycle")
   async logCycle(
     @CurrentUserId() userId: string,
-    @Body() body: { startDate: string; endDate: string | null; flow: string; symptoms: string },
+    @Body() body: LogCycleEntryDto,
   ) {
     return this.service.logCycleEntry(userId, body);
   }
@@ -31,7 +32,7 @@ export class WomensHealthController {
   @Post("menopause")
   async logMenopause(
     @CurrentUserId() userId: string,
-    @Body() body: { hotFlashes: boolean; moodNote: string; sleepDisruption: boolean },
+    @Body() body: LogMenopauseEntryDto,
   ) {
     return this.service.logMenopauseEntry(userId, body);
   }

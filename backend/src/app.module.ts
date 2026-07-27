@@ -18,6 +18,8 @@ import { ConditionsModule } from "./conditions/conditions.module";
 import { PainCrisesModule } from "./pain-crises/pain-crises.module";
 import { WomensHealthModule } from "./womens-health/womens-health.module";
 import { LifestyleModule } from "./lifestyle/lifestyle.module";
+import { HealthSummaryModule } from "./health-summary/health-summary.module";
+import { PosthogModule } from "./common/posthog.module";
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { LifestyleModule } from "./lifestyle/lifestyle.module";
     // every endpoint. Tune per-route with @Throttle() if a specific
     // endpoint (e.g. the AI check-in) needs a tighter or looser limit.
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
+    PosthogModule,
     CheckinsModule,
     MedicationsModule,
     VitalsModule,
@@ -42,6 +45,7 @@ import { LifestyleModule } from "./lifestyle/lifestyle.module";
     PainCrisesModule,
     WomensHealthModule,
     LifestyleModule,
+    HealthSummaryModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

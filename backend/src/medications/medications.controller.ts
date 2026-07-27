@@ -2,7 +2,9 @@ import { Body, Controller, Get, Param, Post, UseGuards, UseInterceptors } from "
 import { MedicationsService } from "./medications.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
+import { CurrentAnalyticsEnabled } from "../auth/current-analytics-enabled.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { CreateMedicationDto, LogMedicationTakenDto } from "./dto/medications.dto";
 
 @Controller("medications")
 @UseGuards(AuthGuard)
@@ -18,13 +20,13 @@ export class MedicationsController {
   @Post()
   async create(
     @CurrentUserId() userId: string,
-    @Body() body: { name: string; dose: string; frequency: string; hour?: number; minute?: number; source?: string },
+    @Body() body: CreateMedicationDto,
   ) {
     return this.medicationsService.create(userId, body);
   }
 
   @Post(":id/log")
-  async logTaken(@Param("id") id: string, @Body("takenAt") takenAt: string) {
-    return this.medicationsService.logTaken(id, takenAt);
+  async logTaken(@CurrentUserId() userId: string, @CurrentAnalyticsEnabled() analyticsEnabled: boolean, @Param("id") id: string, @Body() body: LogMedicationTakenDto) {
+    return this.medicationsService.logTaken(userId, id, body.takenAt, analyticsEnabled);
   }
 }

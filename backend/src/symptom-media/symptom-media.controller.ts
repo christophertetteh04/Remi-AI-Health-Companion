@@ -3,6 +3,7 @@ import { SymptomMediaService } from "./symptom-media.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { UploadSymptomMediaDto } from "./dto/symptom-media.dto";
 
 @Controller("symptom-media")
 @UseGuards(AuthGuard)
@@ -16,9 +17,8 @@ export class SymptomMediaController {
   @Post("upload")
   async upload(
     @CurrentUserId() userId: string,
-    @Body("imageBase64") imageBase64: string,
-    @Body("bodyLocation") bodyLocation: string,
+    @Body() body: UploadSymptomMediaDto,
   ) {
-    return this.service.storePhoto(userId, imageBase64, bodyLocation);
+    return this.service.storePhoto(userId, body.imageBase64, body.bodyLocation);
   }
 }

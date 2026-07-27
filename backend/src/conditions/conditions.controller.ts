@@ -2,7 +2,9 @@ import { Body, Controller, Get, Post, UseGuards, UseInterceptors } from "@nestjs
 import { ConditionsService } from "./conditions.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
+import { CurrentAnalyticsEnabled } from "../auth/current-analytics-enabled.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { ToggleConditionDto } from "./dto/conditions.dto";
 
 @Controller("conditions")
 @UseGuards(AuthGuard)
@@ -19,7 +21,7 @@ export class ConditionsController {
   // auto-enabled. See flow doc: "wants to opt into tracking a
   // specific chronic condition."
   @Post("toggle")
-  async toggle(@CurrentUserId() userId: string, @Body("condition") condition: string, @Body("enabled") enabled: boolean) {
-    return this.service.toggle(userId, condition, enabled);
+  async toggle(@CurrentUserId() userId: string, @CurrentAnalyticsEnabled() analyticsEnabled: boolean, @Body() body: ToggleConditionDto) {
+    return this.service.toggle(userId, body.condition, body.enabled, analyticsEnabled);
   }
 }

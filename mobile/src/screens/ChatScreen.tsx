@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { colors, fonts, urgencyColor } from "../theme/tokens";
 import { Camera, FileText, FlaskConical, HeartPulse, Mic, ScanLine, Send, ShieldCheck, Sparkles, Square, Trash2, Venus } from "lucide-react-native";
-import { type CheckinTopic, sendCheckinMessage } from "../services/api";
+import { authHeader, type CheckinTopic, sendCheckinMessage } from "../services/api";
 import { startRecording, stopRecordingAndTranscribe, cancelRecording } from "../services/voiceRecording";
 import * as ImagePicker from "expo-image-picker";
-import * as SecureStore from "expo-secure-store";
 import { addRecentActivity } from "../services/recentActivity";
+import { trackEvent } from "../services/posthog";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -60,7 +60,9 @@ export default function ChatScreen({ navigation }: any) {
     setLoading(true);
     try {
       const res = await sendCheckinMessage(input, next.map(({ from, text }) => ({ from, text })), checkinTopic);
+      await trackEvent("checkin_message_sent", { tier: res.urgency });
       if (res.crisisDetected) {
+        await trackEvent("crisis_protocol_triggered");
         navigation.navigate("Crisis");
         return;
       }
@@ -109,11 +111,10 @@ export default function ChatScreen({ navigation }: any) {
     // app records only where the photo is of, never what it shows.
     navigation.navigate("BodyMap", {
       onSelect: async (locationLabel: string) => {
-        const token = await SecureStore.getItemAsync("remi_session_token");
         try {
           await fetch(`${API_BASE_URL}/symptom-media/upload`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            headers: { "Content-Type": "application/json", ...(await authHeader()) },
             body: JSON.stringify({ imageBase64: photoBase64, bodyLocation: locationLabel }),
           });
           await addRecentActivity({

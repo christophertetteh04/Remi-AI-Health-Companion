@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Alert, View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
-import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { Card } from "../components/UI";
 import { Activity, Check, ChevronRight, Droplets, HeartPulse, Home, Pencil, ShieldCheck, Sparkles, Stethoscope } from "lucide-react-native";
 import { scheduleHydrationReminder, cancelHydrationReminder } from "../services/notifications";
+import { authHeader } from "../services/api";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -37,8 +37,7 @@ export default function ConditionsScreen({ navigation }: any) {
   useEffect(() => {
     (async () => {
       try {
-        const token = await SecureStore.getItemAsync("remi_session_token");
-        const res = await fetch(`${API_BASE_URL}/conditions`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`${API_BASE_URL}/conditions`, { headers: await authHeader() });
         if (!res.ok) throw new Error();
         const data = await res.json();
         setAvailable(data.available?.length ? data.available : DEFAULT_CONDITIONS);
@@ -60,10 +59,9 @@ export default function ConditionsScreen({ navigation }: any) {
     setTracked(enabling ? [...tracked, condition] : tracked.filter((c) => c !== condition));
 
     try {
-      const token = await SecureStore.getItemAsync("remi_session_token");
       await fetch(`${API_BASE_URL}/conditions/toggle`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({ condition, enabled: enabling }),
       });
     } catch {

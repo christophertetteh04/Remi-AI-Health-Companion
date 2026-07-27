@@ -1,7 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException, Optional } from "@nestjs/common";
 import Anthropic from "@anthropic-ai/sdk";
 import { SupabaseService } from "../common/supabase.service";
 import { EncryptionService } from "../common/encryption.service";
+import { PosthogService } from "../common/posthog.service";
 
 const SYSTEM_PROMPT = `
 You read lab report images and explain them in plain language for
@@ -26,6 +27,8 @@ export class LabsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly encryption: EncryptionService,
+    @Optional()
+    private readonly posthog?: PosthogService,
   ) {}
 
   async listForUser(userId: string) {
@@ -42,7 +45,22 @@ export class LabsService {
     }));
   }
 
-  async interpretAndCompare(userId: string, imageBase64: string, mediaType: string) {
+  async getForUser(userId: string, id: string) {
+    const { data, error } = await this.supabase.client
+      .from("lab_reports")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new NotFoundException("Lab report not found");
+    return {
+      ...data,
+      extracted_summary: this.encryption.decrypt(data.extracted_summary),
+    };
+  }
+
+  async interpretAndCompare(userId: string, imageBase64: string, mediaType: string, analyticsEnabled = true) {
     const response = await this.anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 800,
@@ -93,6 +111,7 @@ export class LabsService {
       .select()
       .single();
 
+    this.posthog?.capture(userId, "lab_report_uploaded", undefined, analyticsEnabled);
     return { ...parsed, comparison, savedId: saved?.id };
   }
 }

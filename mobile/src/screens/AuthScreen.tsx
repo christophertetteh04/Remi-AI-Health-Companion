@@ -5,6 +5,7 @@ import { colors, fonts } from "../theme/tokens";
 import { PrimaryButton, GhostButton } from "../components/UI";
 import { supabase, supabaseConfigError } from "../services/supabaseClient";
 import { restoreAccountDataIfNeeded } from "../services/accountRecovery";
+import { trackEvent } from "../services/posthog";
 import { HeartPulse, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react-native";
 
 // Beginner note: Supabase Auth runs directly between the phone and
@@ -41,6 +42,7 @@ export default function AuthScreen({ navigation }: any) {
       }
       if (data.session?.access_token) {
         await SecureStore.setItemAsync("remi_session_token", data.session.access_token);
+        if (mode === "signup") await trackEvent("signup_completed");
         const restored = await restoreAccountDataIfNeeded();
         if (restored) {
           // A returning user on a new device — their account already

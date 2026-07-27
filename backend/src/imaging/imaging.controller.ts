@@ -3,6 +3,7 @@ import { ImagingService } from "./imaging.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { UploadImagingDto } from "./dto/imaging.dto";
 
 @Controller("imaging")
 @UseGuards(AuthGuard)
@@ -22,10 +23,8 @@ export class ImagingController {
   @Post("upload")
   async upload(
     @CurrentUserId() userId: string,
-    @Body("imageBase64") imageBase64: string,
-    @Body("kind") kind: "report_text" | "scan_image",
-    @Body("scanType") scanType: string,
+    @Body() body: UploadImagingDto,
   ) {
-    return this.service.upload(userId, imageBase64, kind, scanType);
+    return this.service.upload(userId, body.imageBase64, body.kind, body.scanType);
   }
 }

@@ -26,12 +26,11 @@ import {
   scheduleHydrationReminder,
   scheduleWeeklyVitalsReminder,
 } from "../services/notifications";
+import { ANALYTICS_KEY, setAnalyticsEnabled } from "../services/posthog";
 
 const PROFILE_KEY = "remi_profile";
 const QUIET_HOURS_KEY = "remi_quiet_hours";
 const LARGE_TEXT_KEY = "remi_large_text";
-const ANALYTICS_KEY = "remi_analytics_enabled";
-
 type Profile = { name: string; phone: string; email: string };
 
 const defaultProfile: Profile = { name: "", phone: "", email: "" };
@@ -40,7 +39,7 @@ export default function SettingsScreen({ navigation }: any) {
   const [profile, setProfile] = useState<Profile>(defaultProfile);
   const [quietHours, setQuietHours] = useState(false);
   const [largeText, setLargeText] = useState(false);
-  const [analytics, setAnalytics] = useState(false);
+  const [analytics, setAnalytics] = useState(true);
   const [reminders, setReminders] = useState(true);
   const [hydration, setHydration] = useState(false);
   const [preventive, setPreventive] = useState(false);
@@ -52,7 +51,7 @@ export default function SettingsScreen({ navigation }: any) {
       if (storedProfile) setProfile(JSON.parse(storedProfile));
       setQuietHours((await SecureStore.getItemAsync(QUIET_HOURS_KEY)) === "true");
       setLargeText((await SecureStore.getItemAsync(LARGE_TEXT_KEY)) === "true");
-      setAnalytics((await SecureStore.getItemAsync(ANALYTICS_KEY)) === "true");
+      setAnalytics((await SecureStore.getItemAsync(ANALYTICS_KEY)) !== "false");
       setHydration(!!(await SecureStore.getItemAsync("remi_hydration_reminder_ids")));
       setPreventive(!!(await SecureStore.getItemAsync("remi_dental_vision_reminder_id")));
     })();
@@ -68,6 +67,11 @@ export default function SettingsScreen({ navigation }: any) {
     setter(value);
     if (value) await SecureStore.setItemAsync(key, "true");
     else await SecureStore.deleteItemAsync(key);
+  };
+
+  const toggleAnalytics = async (value: boolean) => {
+    setAnalytics(value);
+    await setAnalyticsEnabled(value);
   };
 
   const toggleReminders = async (value: boolean) => {
@@ -145,7 +149,7 @@ export default function SettingsScreen({ navigation }: any) {
         </Section>
 
         <Section icon={<Database size={17} color={colors.primary} />} title="Data">
-          <ToggleRow label="Share app diagnostics" detail="Help improve reliability without symptom text" value={analytics} onValueChange={(v) => toggleStored(v, setAnalytics, ANALYTICS_KEY)} />
+          <ToggleRow label="Share product analytics" detail="Uses PostHog event counts only; no chat, lab, or medication text" value={analytics} onValueChange={toggleAnalytics} />
           <NavRow label="Export health data" detail="Prepare a copy of your saved records" />
           <NavRow label="Delete account data" detail="Request removal of Remi data" destructive />
         </Section>

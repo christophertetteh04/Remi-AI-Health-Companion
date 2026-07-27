@@ -1,5 +1,6 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as SecureStore from "expo-secure-store";
+import { trackEvent } from "./posthog";
 
 type ExpoNotifications = typeof import("expo-notifications");
 type NotificationSubscription = { remove: () => void };
@@ -56,6 +57,7 @@ export async function scheduleMedicationReminder(medicationId: string, hour: num
   const map = JSON.parse((await SecureStore.getItemAsync("remi_reminder_map")) || "{}");
   map[medicationId] = id;
   await SecureStore.setItemAsync("remi_reminder_map", JSON.stringify(map));
+  await trackEvent("medication_reminder_scheduled");
   return id;
 }
 

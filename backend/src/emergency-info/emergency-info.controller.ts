@@ -3,6 +3,7 @@ import { EmergencyInfoService } from "./emergency-info.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { SaveEmergencyInfoDto } from "./dto/emergency-info.dto";
 
 @Controller("emergency-info")
 @UseGuards(AuthGuard)
@@ -21,7 +22,7 @@ export class EmergencyInfoController {
   @Post()
   async save(
     @CurrentUserId() userId: string,
-    @Body() body: { bloodType: string; allergies: string; medications: string; contactName: string; contactPhone: string },
+    @Body() body: SaveEmergencyInfoDto,
   ) {
     return this.service.upsert(userId, body);
   }

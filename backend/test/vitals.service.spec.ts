@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { NotFoundException } from "@nestjs/common";
 import { VitalsService } from "../src/vitals/vitals.service";
 import { SupabaseService } from "../src/common/supabase.service";
 
@@ -48,5 +49,19 @@ describe("VitalsService.evaluate", () => {
   it("always persists the reading regardless of tier", async () => {
     await service.evaluate("user-1", { systolic: 118, diastolic: 76 });
     expect(mockInsert).toHaveBeenCalled();
+  });
+});
+
+describe("VitalsService access control", () => {
+  it("rejects reading another user's vitals record by id", async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+    const secondEq = jest.fn(() => ({ maybeSingle }));
+    const firstEq = jest.fn(() => ({ eq: secondEq }));
+    const select = jest.fn(() => ({ eq: firstEq }));
+    const service = new VitalsService({ client: { from: () => ({ select }) } } as any);
+
+    await expect(service.getForUser("user-a", "vitals-owned-by-user-b")).rejects.toBeInstanceOf(NotFoundException);
+    expect(firstEq).toHaveBeenCalledWith("id", "vitals-owned-by-user-b");
+    expect(secondEq).toHaveBeenCalledWith("user_id", "user-a");
   });
 });

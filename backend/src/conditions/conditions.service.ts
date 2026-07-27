@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { SupabaseService } from "../common/supabase.service";
+import { PosthogService } from "../common/posthog.service";
 
 // IMPORTANT: this module (and pain-crises alongside it) is flagged
 // as pending clinical advisor review before real users rely on it —
@@ -17,7 +18,11 @@ export const TRACKABLE_CONDITIONS = [
 
 @Injectable()
 export class ConditionsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    @Optional()
+    private readonly posthog?: PosthogService,
+  ) {}
 
   async listForUser(userId: string) {
     const { data, error } = await this.supabase.client
@@ -29,7 +34,7 @@ export class ConditionsService {
     return { tracked: (data || []).map((r) => r.condition), available: TRACKABLE_CONDITIONS };
   }
 
-  async toggle(userId: string, condition: string, enabled: boolean) {
+  async toggle(userId: string, condition: string, enabled: boolean, analyticsEnabled = true) {
     if (!TRACKABLE_CONDITIONS.includes(condition as any)) {
       throw new Error(`Unknown condition: ${condition}`);
     }
@@ -38,6 +43,7 @@ export class ConditionsService {
       .upsert({ user_id: userId, condition, enabled }, { onConflict: "user_id,condition" })
       .select();
     if (error) throw error;
+    if (enabled) this.posthog?.capture(userId, "condition_tracking_enabled", { condition }, analyticsEnabled);
     return data;
   }
 }

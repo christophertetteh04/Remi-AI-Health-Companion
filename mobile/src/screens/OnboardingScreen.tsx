@@ -5,6 +5,7 @@ import { colors, fonts } from "../theme/tokens";
 import { PrimaryButton } from "../components/UI";
 import { Check, HeartPulse, Lock, ShieldCheck, Sparkles, UserRound } from "lucide-react-native";
 import { useAppLock } from "../hooks/useAppLock";
+import { trackEvent } from "../services/posthog";
 
 const onboardingImage = require("../../assets/images/onboarding-health-companion.jpg");
 
@@ -22,6 +23,7 @@ export default function OnboardingScreen({ navigation }: any) {
     if (lockOn) await enableLock();
     await SecureStore.setItemAsync("remi_profile", JSON.stringify({ name: name.trim(), phone: phone.trim(), email: "" }));
     await SecureStore.setItemAsync("remi_onboarded", "true");
+    await trackEvent("onboarding_completed");
     navigation.replace("Welcome");
   };
 

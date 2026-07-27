@@ -3,6 +3,7 @@ import { SamplePhotosService } from "./sample-photos.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUserId } from "../auth/current-user.decorator";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
+import { AnalyzeSamplePhotoDto } from "./dto/sample-photos.dto";
 
 @Controller("sample-photos")
 @UseGuards(AuthGuard)
@@ -13,10 +14,9 @@ export class SamplePhotosController {
   @Post("analyze")
   async analyze(
     @CurrentUserId() userId: string,
-    @Body("imageBase64") imageBase64: string,
-    @Body("sampleType") sampleType: "urine" | "stool",
+    @Body() body: AnalyzeSamplePhotoDto,
   ) {
-    return this.service.analyze(userId, imageBase64, sampleType);
+    return this.service.analyze(userId, body.imageBase64, body.sampleType);
   }
 
   // One-tap delete — this content type gets the strongest, clearest

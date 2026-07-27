@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { View, Text, Image, ScrollView, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { Card, PrimaryButton, GhostButton, ScreenHeader } from "../components/UI";
 import { Sparkles } from "lucide-react-native";
 import { addRecentActivity } from "../services/recentActivity";
+import { authHeader } from "../services/api";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -32,11 +32,10 @@ export default function LabUploadScreen({ navigation }: any) {
     setError("");
     setResult(null);
 
-    const token = await SecureStore.getItemAsync("remi_session_token");
     try {
       const res = await fetch(`${API_BASE_URL}/labs/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({ imageBase64: picked.assets[0].base64, mediaType: "image/jpeg" }),
       });
       if (!res.ok) throw new Error();
