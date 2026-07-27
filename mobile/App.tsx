@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Alert, StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ToastProvider } from "react-native-toast-notifications";
 import * as SecureStore from "expo-secure-store";
 import * as Sentry from "@sentry/react-native";
 import RootNavigator from "./src/navigation/RootNavigator";
 import LockScreen from "./src/screens/LockScreen";
 import SplashScreen from "./src/screens/SplashScreen";
 import RemiAlertHost from "./src/components/RemiAlertHost";
+import RemiToast from "./src/components/RemiToast";
 import { useAppLock } from "./src/hooks/useAppLock";
 import { supabase } from "./src/services/supabaseClient";
 import { navigateFromNotification } from "./src/navigation/navigationRef";
@@ -98,9 +100,12 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={colors.bg === "#090D13" ? "light-content" : "dark-content"} backgroundColor={colors.bg} />
-      <RootNavigator hasSession={hasSession} onboarded={onboarded} displayVersion={displayVersion} />
-      <RemiAlertHost />
+      <ToastProvider placement="top" duration={3200} animationType="slide-in">
+        <StatusBar barStyle={colors.bg === "#090D13" ? "light-content" : "dark-content"} backgroundColor={colors.bg} />
+        <RootNavigator hasSession={hasSession} onboarded={onboarded} displayVersion={displayVersion} />
+        <RemiAlertHost />
+        <RemiToast />
+      </ToastProvider>
     </SafeAreaProvider>
   );
 }

@@ -29,9 +29,6 @@
         "USE_BIOMETRIC",
         "SCHEDULE_EXACT_ALARM"
       ]
-    },
-    "plugins": [
-      "@react-native-community/datetimepicker"
-    ]
+    }
   }
 }

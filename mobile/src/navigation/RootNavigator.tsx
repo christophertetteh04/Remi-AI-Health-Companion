@@ -35,6 +35,7 @@ import PreventiveCareScreen from "../screens/PreventiveCareScreen";
 import FirstAidScreen from "../screens/FirstAidScreen";
 import DailyInsightsScreen from "../screens/DailyInsightsScreen";
 import HealthOverviewScreen from "../screens/HealthOverviewScreen";
+import AllActivitiesScreen from "../screens/AllActivitiesScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import AppLockSettingsScreen from "../screens/AppLockSettingsScreen";
 import QuietHoursSettingsScreen from "../screens/QuietHoursSettingsScreen";
@@ -103,6 +104,7 @@ export default function RootNavigator({ hasSession, onboarded, displayVersion }:
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Welcome" component={WelcomeAnimationScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
+        <Stack.Screen name="AllActivities" component={AllActivitiesScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AppLockSettings" component={AppLockSettingsScreen} />
         <Stack.Screen name="QuietHoursSettings" component={QuietHoursSettingsScreen} />

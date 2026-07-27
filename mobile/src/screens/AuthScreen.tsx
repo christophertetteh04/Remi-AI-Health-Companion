@@ -1,12 +1,16 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { PrimaryButton, GhostButton } from "../components/UI";
+import { showRemiToast } from "../components/RemiToast";
 import { supabase, supabaseConfigError } from "../services/supabaseClient";
 import { restoreAccountDataIfNeeded } from "../services/accountRecovery";
 import { trackEvent } from "../services/posthog";
-import { HeartPulse, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react-native";
+import { Check, HeartPulse, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react-native";
+
+const REMEMBER_EMAIL_KEY = "remi_remembered_email";
+const REMEMBER_ME_KEY = "remi_remember_me";
 
 // Beginner note: Supabase Auth runs directly between the phone and
 // Supabase — the backend never sees the password, only the resulting
@@ -17,17 +21,42 @@ export default function AuthScreen({ navigation }: any) {
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    const loadRememberedEmail = async () => {
+      const remembered = (await SecureStore.getItemAsync(REMEMBER_ME_KEY)) === "true";
+      const rememberedEmail = await SecureStore.getItemAsync(REMEMBER_EMAIL_KEY);
+      setRememberMe(remembered);
+      if (remembered && rememberedEmail) {
+        setEmail(rememberedEmail);
+        setMode("signin");
+      }
+    };
+
+    loadRememberedEmail();
+  }, []);
+
+  const showRequiredDetailsToast = () => {
+    showRemiToast("Almost there", "Please complete the required details before continuing.");
+  };
 
   const submit = async () => {
-    setLoading(true);
     setError("");
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password.trim()) {
+      showRequiredDetailsToast();
+      return;
+    }
+
+    setLoading(true);
     if (!supabase) {
       setLoading(false);
       setError(supabaseConfigError || "Supabase is not configured.");
       return;
     }
     try {
-      const credentials = { email: email.trim(), password };
+      const credentials = { email: cleanEmail, password };
       const { data, error: authError } =
         mode === "signup"
           ? await supabase.auth.signUp(credentials)
@@ -39,6 +68,13 @@ export default function AuthScreen({ navigation }: any) {
       if (authError) {
         setError(authError.message);
         return;
+      }
+      if (rememberMe) {
+        await SecureStore.setItemAsync(REMEMBER_ME_KEY, "true");
+        await SecureStore.setItemAsync(REMEMBER_EMAIL_KEY, cleanEmail);
+      } else {
+        await SecureStore.deleteItemAsync(REMEMBER_ME_KEY);
+        await SecureStore.deleteItemAsync(REMEMBER_EMAIL_KEY);
       }
       if (data.session?.access_token) {
         await SecureStore.setItemAsync("remi_session_token", data.session.access_token);
@@ -129,12 +165,23 @@ export default function AuthScreen({ navigation }: any) {
             secureTextEntry
             style={styles.input}
           />
+          {mode === "signin" ? (
+            <Pressable onPress={() => setRememberMe((value) => !value)} style={styles.rememberRow}>
+              <View style={[styles.rememberBox, rememberMe && styles.rememberBoxActive]}>
+                {rememberMe ? <Check size={12} color={colors.bg} /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rememberTitle}>Remember me</Text>
+                {/* <Text style={styles.rememberText}>Save this email on this device. Remi never stores your password.</Text> */}
+              </View>
+            </Pressable>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <PrimaryButton title={loading ? "Please wait…" : mode === "signup" ? "Create secure account" : "Sign in securely"} onPress={submit} />
           <View style={styles.lockNote}>
-            <LockKeyhole size={13} color={colors.inkFaint} />
-            <Text style={styles.lockText}>Your session token is stored securely on this device.</Text>
+            {/* <LockKeyhole size={13} color={colors.inkFaint} />
+            <Text style={styles.lockText}>Your session token is stored securely on this device.</Text> */}
           </View>
         </View>
 
@@ -173,6 +220,11 @@ const styles = StyleSheet.create({
   modeTextActive: { color: colors.primary, fontFamily: fonts.bodySemiBold },
   label: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 11.5, marginBottom: 7 },
   input: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 12 },
+  rememberRow: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.bg, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 12, marginBottom: 12 },
+  rememberBox: { width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: colors.hairline, alignItems: "center", justifyContent: "center", marginRight: 10, marginTop: 1, backgroundColor: colors.surface },
+  rememberBoxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  rememberTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13 },
+  rememberText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, lineHeight: 16, marginTop: 3 },
   error: { color: colors.urgent, fontFamily: fonts.body, fontSize: 12.5, marginTop: 4 },
   lockNote: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 12 },
   lockText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, flex: 1 },
