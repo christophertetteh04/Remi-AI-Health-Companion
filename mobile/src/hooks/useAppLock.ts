@@ -3,7 +3,16 @@ import { AppState, AppStateStatus } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 
-const LOCK_TIMEOUT_MS = 60 * 1000; // re-lock after 60s in the background
+export const LOCK_ENABLED_KEY = "remi_lock_enabled";
+export const LOCK_TIMEOUT_KEY = "remi_lock_timeout_ms";
+export const DEFAULT_LOCK_TIMEOUT_MS = 60 * 1000;
+
+type LockListener = (enabled: boolean) => void;
+const lockListeners = new Set<LockListener>();
+
+function notifyLockListeners(enabled: boolean) {
+  lockListeners.forEach((listener) => listener(enabled));
+}
 
 export function useAppLock() {
   const [lockEnabled, setLockEnabled] = useState(false);
@@ -13,14 +22,21 @@ export function useAppLock() {
 
   useEffect(() => {
     (async () => {
-      const enabled = await SecureStore.getItemAsync("remi_lock_enabled");
+      const enabled = await SecureStore.getItemAsync(LOCK_ENABLED_KEY);
       setLockEnabled(enabled === "true");
       setUnlocked(enabled !== "true"); // no lock configured yet → don't block access
       setChecking(false);
     })();
 
+    const unsubscribe = subscribeToLockChanges((enabled) => {
+      setLockEnabled(enabled);
+      if (!enabled) setUnlocked(true);
+    });
     const sub = AppState.addEventListener("change", handleAppStateChange);
-    return () => sub.remove();
+    return () => {
+      unsubscribe();
+      sub.remove();
+    };
   }, []);
 
   const handleAppStateChange = (next: AppStateStatus) => {
@@ -28,11 +44,13 @@ export function useAppLock() {
       backgroundedAt.current = Date.now();
     } else if (next === "active" && backgroundedAt.current) {
       const elapsed = Date.now() - backgroundedAt.current;
-      if (elapsed > LOCK_TIMEOUT_MS) {
-        SecureStore.getItemAsync("remi_lock_enabled").then((enabled) => {
-          if (enabled === "true") setUnlocked(false);
-        });
-      }
+      getLockTimeoutMs().then((timeoutMs) => {
+        if (elapsed >= timeoutMs) {
+          SecureStore.getItemAsync(LOCK_ENABLED_KEY).then((enabled) => {
+            if (enabled === "true") setUnlocked(false);
+          });
+        }
+      });
       backgroundedAt.current = null;
     }
   };
@@ -61,14 +79,29 @@ export function useAppLock() {
   };
 
   const enableLock = async () => {
-    await SecureStore.setItemAsync("remi_lock_enabled", "true");
+    await SecureStore.setItemAsync(LOCK_ENABLED_KEY, "true");
     setLockEnabled(true);
+    setUnlocked(true);
+    notifyLockListeners(true);
   };
 
   const disableLock = async () => {
-    await SecureStore.deleteItemAsync("remi_lock_enabled");
+    await SecureStore.deleteItemAsync(LOCK_ENABLED_KEY);
     setLockEnabled(false);
+    setUnlocked(true);
+    notifyLockListeners(false);
   };
 
   return { lockEnabled, unlocked, checking, attemptUnlock, enableLock, disableLock };
+}
+
+function subscribeToLockChanges(listener: LockListener) {
+  lockListeners.add(listener);
+  return () => lockListeners.delete(listener);
+}
+
+async function getLockTimeoutMs() {
+  const stored = await SecureStore.getItemAsync(LOCK_TIMEOUT_KEY);
+  const parsed = Number(stored);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_LOCK_TIMEOUT_MS;
 }

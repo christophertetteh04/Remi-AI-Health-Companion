@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import * as SecureStore from "expo-secure-store";
 import { AlertTriangle, CalendarClock, Check, Droplets, FlaskConical, HeartPulse, Stethoscope } from "lucide-react-native";
 import { Card, PrimaryButton } from "../components/UI";
+import DatePickerField from "../components/DatePickerField";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
 import { scheduleKidneyLabReminder } from "../services/notifications";
@@ -195,8 +196,8 @@ export default function KidneyFunctionScreen({ navigation }: any) {
           <Input label="Diabetes or glucose notes" placeholder="e.g. No diabetes, A1C 6.4, fasting glucose..." value={plan.diabetesStatus} onChangeText={(v) => update("diabetesStatus", v)} />
 
           <SectionTitle icon={<CalendarClock size={16} color={colors.primary} />} title="Care schedule" />
-          <Input label="Next kidney lab date" placeholder="YYYY-MM-DD" value={plan.nextLabDate} onChangeText={(v) => update("nextLabDate", v)} keyboardType="numbers-and-punctuation" />
-          <Input label="Next nephrology or clinic visit" placeholder="YYYY-MM-DD or appointment note" value={plan.nephrologyDate} onChangeText={(v) => update("nephrologyDate", v)} />
+          <DatePickerField label="Next kidney lab date" value={plan.nextLabDate} onChange={(v) => update("nextLabDate", v)} placeholder="Select next lab date" />
+          <DatePickerField label="Next nephrology or clinic visit" value={plan.nephrologyDate} onChange={(v) => update("nephrologyDate", v)} placeholder="Select clinic visit date" />
 
           <SectionTitle icon={<Droplets size={16} color={colors.primary} />} title="Clinician guidance" />
           <Input label="Fluid or diet guidance" placeholder="Add any fluid, salt, potassium, or protein guidance..." value={plan.fluidGuidance} onChangeText={(v) => update("fluidGuidance", v)} multiline />

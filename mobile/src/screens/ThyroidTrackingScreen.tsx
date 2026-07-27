@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import * as SecureStore from "expo-secure-store";
 import { Activity, AlertTriangle, CalendarClock, Check, FlaskConical, Sparkles, Tablets, Thermometer } from "lucide-react-native";
 import { Card, PrimaryButton } from "../components/UI";
+import DatePickerField from "../components/DatePickerField";
 import { ConditionLeavePrompt } from "../components/ConditionLeavePrompt";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
@@ -209,8 +210,8 @@ export default function ThyroidTrackingScreen({ navigation }: any) {
           <Input label="Medication instructions" placeholder="e.g. Take before breakfast, separate from iron/calcium..." value={plan.medicationInstructions} onChangeText={(v) => update("medicationInstructions", v)} multiline />
 
           <SectionTitle icon={<CalendarClock size={16} color={colors.primary} />} title="Follow-up" />
-          <Input label="Next thyroid lab date" placeholder="YYYY-MM-DD" value={plan.nextLabDate} onChangeText={(v) => update("nextLabDate", v)} keyboardType="numbers-and-punctuation" />
-          <Input label="Follow-up appointment" placeholder="YYYY-MM-DD or appointment note" value={plan.followUpDate} onChangeText={(v) => update("followUpDate", v)} />
+          <DatePickerField label="Next thyroid lab date" value={plan.nextLabDate} onChange={(v) => update("nextLabDate", v)} placeholder="Select next lab date" />
+          <DatePickerField label="Follow-up appointment" value={plan.followUpDate} onChange={(v) => update("followUpDate", v)} placeholder="Select follow-up date" />
           <Input label="Clinician notes" placeholder="Targets, dose changes, questions, or next steps..." value={plan.notes} onChangeText={(v) => update("notes", v)} multiline />
         </Card>
 

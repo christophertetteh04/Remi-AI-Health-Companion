@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import * as SecureStore from "expo-secure-store";
 import { CalendarDays, Check, ChevronRight, Moon, Sparkles, ThermometerSun } from "lucide-react-native";
 import { Card, PrimaryButton } from "../components/UI";
+import DatePickerField from "../components/DatePickerField";
 import { addRecentActivity } from "../services/recentActivity";
 import { colors, fonts } from "../theme/tokens";
 
@@ -111,7 +112,7 @@ function CycleTracker() {
 
       <Card style={styles.formCard}>
         <SectionTitle icon={<CalendarDays size={16} color={colors.primary} />} title="Log cycle entry" />
-        <Input label="Start date" value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" />
+        <DatePickerField label="Start date" value={startDate} onChange={setStartDate} placeholder="Select cycle start date" />
 
         <Text style={styles.label}>Flow level</Text>
         <View style={styles.choiceRow}>

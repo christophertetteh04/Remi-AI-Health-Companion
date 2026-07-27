@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import * as SecureStore from "expo-secure-store";
 import { Activity, AlertTriangle, CalendarClock, Check, FlaskConical, HeartPulse, Salad, Tablets } from "lucide-react-native";
 import { Card, PrimaryButton } from "../components/UI";
+import DatePickerField from "../components/DatePickerField";
 import { ConditionLeavePrompt } from "../components/ConditionLeavePrompt";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
@@ -213,7 +214,7 @@ export default function CholesterolTrackingScreen({ navigation }: any) {
           <Input label="Medication reminder time" placeholder="20:00" value={plan.medicationTime} onChangeText={(v) => update("medicationTime", v)} keyboardType="numbers-and-punctuation" />
 
           <SectionTitle icon={<CalendarClock size={16} color={colors.primary} />} title="Follow-up" />
-          <Input label="Next lipid test date" placeholder="YYYY-MM-DD" value={plan.nextLipidTestDate} onChangeText={(v) => update("nextLipidTestDate", v)} keyboardType="numbers-and-punctuation" />
+          <DatePickerField label="Next lipid test date" value={plan.nextLipidTestDate} onChange={(v) => update("nextLipidTestDate", v)} placeholder="Select next lipid test date" />
 
           <SectionTitle icon={<Salad size={16} color={colors.primary} />} title="Lifestyle plan" />
           <Input label="Nutrition goal" placeholder="e.g. More fiber, reduce fried foods, limit trans fats..." value={plan.nutritionGoal} onChangeText={(v) => update("nutritionGoal", v)} multiline />

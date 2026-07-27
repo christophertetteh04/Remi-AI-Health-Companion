@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
 import { Activity, AlertTriangle, CalendarClock, Check, Download, FileText, FlaskConical, HeartPulse, Home, Pill, Sparkles } from "lucide-react-native";
 import { Card, PrimaryButton } from "../components/UI";
+import DatePickerField from "../components/DatePickerField";
 import { colors, fonts } from "../theme/tokens";
 import { exportHealthSummaryPdf, generateDoctorPrepSummary, getCorrelationalInsights, getUnifiedTimeline } from "../services/api";
 
@@ -120,7 +121,7 @@ export default function HealthOverviewScreen({ navigation }: any) {
 
           <Text style={styles.sectionLabel}>DOCTOR-VISIT PREP</Text>
           <Card style={styles.formCard}>
-            <Input label="Visit date" value={visitDate} onChangeText={setVisitDate} placeholder="YYYY-MM-DD, optional" />
+            <DatePickerField label="Visit date" value={visitDate} onChange={setVisitDate} placeholder="Select visit date" optional />
             <Input label="Main concern" value={concern} onChangeText={setConcern} placeholder="What do you want to discuss?" multiline />
             <PrimaryButton title={loadingSummary ? "Generating..." : "Generate prep summary"} onPress={generateSummary} />
             {summary ? <Text style={styles.summaryText}>{summary}</Text> : null}

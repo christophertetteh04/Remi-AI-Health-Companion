@@ -8,6 +8,29 @@ type NotificationSubscription = { remove: () => void };
 const noopSubscription: NotificationSubscription = { remove: () => {} };
 const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 let notificationsModule: ExpoNotifications | null | undefined;
+export const QUIET_HOURS_ENABLED_KEY = "remi_quiet_hours";
+export const QUIET_HOURS_START_KEY = "remi_quiet_hours_start";
+export const QUIET_HOURS_END_KEY = "remi_quiet_hours_end";
+export const DEFAULT_QUIET_HOURS_START = "22:00";
+export const DEFAULT_QUIET_HOURS_END = "07:00";
+export const PREVENTIVE_CARE_ENABLED_KEY = "remi_preventive_care_enabled";
+export const PREVENTIVE_CARE_TYPES_KEY = "remi_preventive_care_types";
+export const PREVENTIVE_CARE_INTERVAL_KEY = "remi_preventive_care_interval_months";
+export const PREVENTIVE_CARE_REMINDER_IDS_KEY = "remi_preventive_care_reminder_ids";
+export const DEFAULT_PREVENTIVE_CARE_TYPES = ["dental", "vision"];
+export const DEFAULT_PREVENTIVE_CARE_INTERVAL_MONTHS = 6;
+export const HYDRATION_ENABLED_KEY = "remi_hydration_enabled";
+export const HYDRATION_TIMES_KEY = "remi_hydration_times";
+export const HYDRATION_REMINDER_IDS_KEY = "remi_hydration_reminder_ids";
+export const DEFAULT_HYDRATION_TIMES = ["10:00", "16:00"];
+export const HEALTH_REMINDERS_ENABLED_KEY = "remi_health_reminders_enabled";
+export const HEALTH_REMINDER_TYPES_KEY = "remi_health_reminder_types";
+export const HEALTH_REMINDER_DAY_KEY = "remi_health_reminder_day";
+export const HEALTH_REMINDER_TIME_KEY = "remi_health_reminder_time";
+export const HEALTH_REMINDER_IDS_KEY = "remi_health_reminder_ids";
+export const DEFAULT_HEALTH_REMINDER_TYPES = ["vitals", "checkin"];
+export const DEFAULT_HEALTH_REMINDER_DAY = 1;
+export const DEFAULT_HEALTH_REMINDER_TIME = "09:00";
 
 async function getNotifications() {
   if (isExpoGo) return null;
@@ -15,15 +38,40 @@ async function getNotifications() {
 
   notificationsModule = await import("expo-notifications");
   notificationsModule.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async () => {
+      const quiet = await isQuietHoursActive();
+      return {
+        shouldShowAlert: !quiet,
+        shouldShowBanner: !quiet,
+        shouldShowList: !quiet,
+        shouldPlaySound: !quiet,
+        shouldSetBadge: false,
+      };
+    },
   });
   return notificationsModule;
+}
+
+export async function isQuietHoursActive(now = new Date()) {
+  const enabled = (await SecureStore.getItemAsync(QUIET_HOURS_ENABLED_KEY)) === "true";
+  if (!enabled) return false;
+
+  const start = parseTime(await SecureStore.getItemAsync(QUIET_HOURS_START_KEY), DEFAULT_QUIET_HOURS_START);
+  const end = parseTime(await SecureStore.getItemAsync(QUIET_HOURS_END_KEY), DEFAULT_QUIET_HOURS_END);
+  const current = now.getHours() * 60 + now.getMinutes();
+
+  if (start === end) return true;
+  if (start < end) return current >= start && current < end;
+  return current >= start || current < end;
+}
+
+function parseTime(value: string | null, fallback: string) {
+  const raw = value || fallback;
+  const [hourRaw, minuteRaw] = raw.split(":");
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return parseTime(fallback, "22:00");
+  return Math.max(0, Math.min(23, hour)) * 60 + Math.max(0, Math.min(59, minute));
 }
 
 export async function requestNotificationPermissions() {
@@ -75,25 +123,73 @@ export async function cancelMedicationReminder(medicationId: string) {
 }
 
 export async function scheduleWeeklyVitalsReminder() {
+  const ids = await scheduleHealthReminders({
+    types: ["vitals"],
+    weekday: DEFAULT_HEALTH_REMINDER_DAY,
+    time: DEFAULT_HEALTH_REMINDER_TIME,
+  });
+  return ids?.[0] || null;
+}
+
+export async function scheduleHealthReminders({ types, weekday, time }: { types: string[]; weekday: number; time: string }) {
   const Notifications = await getNotifications();
+  await SecureStore.setItemAsync(HEALTH_REMINDERS_ENABLED_KEY, "true");
+  await SecureStore.setItemAsync(HEALTH_REMINDER_TYPES_KEY, JSON.stringify(types));
+  await SecureStore.setItemAsync(HEALTH_REMINDER_DAY_KEY, String(weekday));
+  await SecureStore.setItemAsync(HEALTH_REMINDER_TIME_KEY, time);
   if (!Notifications) return null;
 
   const granted = await requestNotificationPermissions();
   if (!granted) return null;
 
-  const already = await SecureStore.getItemAsync("remi_vitals_reminder_id");
-  if (already) return already;
+  await cancelHealthReminders(false);
 
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Remi reminder",
-      body: "Time for your weekly check-in.",
-      data: { type: "vitals" },
-    },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 1, hour: 9, minute: 0 },
-  });
-  await SecureStore.setItemAsync("remi_vitals_reminder_id", id);
-  return id;
+  const [hourRaw, minuteRaw] = time.split(":");
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+
+  const ids: string[] = [];
+  for (const type of types) {
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title: "Remi health reminder", body: healthReminderMessage(type), data: { type: healthReminderDataType(type), reminderType: type } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday, hour, minute },
+    });
+    ids.push(id);
+  }
+  await SecureStore.setItemAsync(HEALTH_REMINDER_IDS_KEY, JSON.stringify(ids));
+  await SecureStore.setItemAsync("remi_vitals_reminder_id", ids[0] || "");
+  return ids;
+}
+
+export async function cancelHealthReminders(clearPreferences = true) {
+  const Notifications = await getNotifications();
+  const existingIds = await SecureStore.getItemAsync(HEALTH_REMINDER_IDS_KEY);
+  const legacyId = await SecureStore.getItemAsync("remi_vitals_reminder_id");
+
+  if (Notifications) {
+    const ids: string[] = existingIds ? JSON.parse(existingIds) : [];
+    if (legacyId) ids.push(legacyId);
+    await Promise.all([...new Set(ids.filter(Boolean))].map((id) => Notifications.cancelScheduledNotificationAsync(id)));
+  }
+
+  await SecureStore.deleteItemAsync(HEALTH_REMINDER_IDS_KEY);
+  await SecureStore.deleteItemAsync("remi_vitals_reminder_id");
+  if (clearPreferences) await SecureStore.deleteItemAsync(HEALTH_REMINDERS_ENABLED_KEY);
+}
+
+function healthReminderMessage(type: string) {
+  if (type === "vitals") return "Time for your weekly vitals check-in.";
+  if (type === "checkin") return "Take a moment for a quick Remi health check-in.";
+  if (type === "medication_review") return "Review your medication list and reminders.";
+  return "Time for your Remi health reminder.";
+}
+
+function healthReminderDataType(type: string) {
+  if (type === "vitals") return "vitals";
+  if (type === "checkin") return "chat";
+  if (type === "medication_review") return "meds";
+  return "health_reminder";
 }
 
 export function addNotificationResponseListener(onTap: (data: any) => void): NotificationSubscription {
@@ -113,37 +209,51 @@ export function addNotificationResponseListener(onTap: (data: any) => void): Not
 }
 
 export async function scheduleHydrationReminder() {
+  return scheduleHydrationReminders(DEFAULT_HYDRATION_TIMES);
+}
+
+export async function scheduleHydrationReminders(times: string[]) {
   const Notifications = await getNotifications();
+  await SecureStore.setItemAsync(HYDRATION_ENABLED_KEY, "true");
+  await SecureStore.setItemAsync(HYDRATION_TIMES_KEY, JSON.stringify(times));
   if (!Notifications) return null;
 
   const granted = await requestNotificationPermissions();
   if (!granted) return null;
 
-  const existing = await SecureStore.getItemAsync("remi_hydration_reminder_ids");
-  if (existing) return JSON.parse(existing);
+  await cancelHydrationReminder(false);
 
-  const morning = await Notifications.scheduleNotificationAsync({
-    content: { title: "Remi reminder", body: "Stay hydrated today.", data: { type: "hydration" } },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 10, minute: 0 },
-  });
-  const afternoon = await Notifications.scheduleNotificationAsync({
-    content: { title: "Remi reminder", body: "Stay hydrated today.", data: { type: "hydration" } },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 16, minute: 0 },
-  });
-  const ids = [morning, afternoon];
-  await SecureStore.setItemAsync("remi_hydration_reminder_ids", JSON.stringify(ids));
+  const ids: string[] = [];
+  for (const time of times) {
+    const [hourRaw, minuteRaw] = time.split(":");
+    const hour = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title: "Remi hydration", body: hydrationReminderMessage(time), data: { type: "hydration" } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
+    });
+    ids.push(id);
+  }
+  await SecureStore.setItemAsync(HYDRATION_REMINDER_IDS_KEY, JSON.stringify(ids));
   return ids;
 }
 
-export async function cancelHydrationReminder() {
+export async function cancelHydrationReminder(clearPreferences = true) {
   const Notifications = await getNotifications();
-  if (!Notifications) return;
+  const existing = await SecureStore.getItemAsync(HYDRATION_REMINDER_IDS_KEY);
+  if (Notifications && existing) {
+    const ids: string[] = JSON.parse(existing);
+    await Promise.all(ids.map((id) => Notifications.cancelScheduledNotificationAsync(id)));
+  }
+  await SecureStore.deleteItemAsync(HYDRATION_REMINDER_IDS_KEY);
+  if (clearPreferences) await SecureStore.deleteItemAsync(HYDRATION_ENABLED_KEY);
+}
 
-  const existing = await SecureStore.getItemAsync("remi_hydration_reminder_ids");
-  if (!existing) return;
-  const ids: string[] = JSON.parse(existing);
-  await Promise.all(ids.map((id) => Notifications.cancelScheduledNotificationAsync(id)));
-  await SecureStore.deleteItemAsync("remi_hydration_reminder_ids");
+function hydrationReminderMessage(time: string) {
+  if (time < "12:00") return "A gentle water check for your morning.";
+  if (time < "17:00") return "A quick hydration pause for your afternoon.";
+  return "A light hydration reminder for the evening.";
 }
 
 export async function scheduleAnnualCheckupReminder(lastVisitISODate: string) {
@@ -235,31 +345,70 @@ export async function scheduleThyroidLabReminder(nextLabISODate: string) {
 }
 
 export async function scheduleDentalVisionReminder() {
+  const ids = await schedulePreventiveCareReminders({
+    types: DEFAULT_PREVENTIVE_CARE_TYPES,
+    intervalMonths: DEFAULT_PREVENTIVE_CARE_INTERVAL_MONTHS,
+  });
+  return ids?.[0] || null;
+}
+
+export async function schedulePreventiveCareReminders({
+  types,
+  intervalMonths,
+}: {
+  types: string[];
+  intervalMonths: number;
+}) {
   const Notifications = await getNotifications();
+  await SecureStore.setItemAsync(PREVENTIVE_CARE_ENABLED_KEY, "true");
+  await SecureStore.setItemAsync(PREVENTIVE_CARE_TYPES_KEY, JSON.stringify(types));
+  await SecureStore.setItemAsync(PREVENTIVE_CARE_INTERVAL_KEY, String(intervalMonths));
   if (!Notifications) return null;
 
   const granted = await requestNotificationPermissions();
   if (!granted) return null;
 
-  const existing = await SecureStore.getItemAsync("remi_dental_vision_reminder_id");
-  if (existing) return existing;
+  await cancelPreventiveCareReminders(false);
 
-  const target = new Date();
-  target.setMonth(target.getMonth() + 6);
-  const id = await Notifications.scheduleNotificationAsync({
-    content: { title: "Remi reminder", body: "Worth booking a dental or vision check soon.", data: { type: "dental_vision" } },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
-  });
-  await SecureStore.setItemAsync("remi_dental_vision_reminder_id", id);
-  return id;
+  const ids: string[] = [];
+  for (const type of types) {
+    const target = new Date();
+    target.setMonth(target.getMonth() + intervalMonths);
+    target.setHours(9, 0, 0, 0);
+    const id = await Notifications.scheduleNotificationAsync({
+      content: { title: "Remi preventive care", body: preventiveCareMessage(type), data: { type: "preventive_care", preventiveType: type } },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
+    });
+    ids.push(id);
+  }
+  await SecureStore.setItemAsync(PREVENTIVE_CARE_REMINDER_IDS_KEY, JSON.stringify(ids));
+  await SecureStore.setItemAsync("remi_dental_vision_reminder_id", ids[0] || "");
+  return ids;
 }
 
 export async function cancelDentalVisionReminder() {
-  const Notifications = await getNotifications();
-  if (!Notifications) return;
+  await cancelPreventiveCareReminders();
+}
 
-  const existing = await SecureStore.getItemAsync("remi_dental_vision_reminder_id");
-  if (!existing) return;
-  await Notifications.cancelScheduledNotificationAsync(existing);
+export async function cancelPreventiveCareReminders(clearPreferences = true) {
+  const Notifications = await getNotifications();
+  const existingIds = await SecureStore.getItemAsync(PREVENTIVE_CARE_REMINDER_IDS_KEY);
+  const legacyId = await SecureStore.getItemAsync("remi_dental_vision_reminder_id");
+
+  if (Notifications) {
+    const ids: string[] = existingIds ? JSON.parse(existingIds) : [];
+    if (legacyId) ids.push(legacyId);
+    await Promise.all([...new Set(ids.filter(Boolean))].map((id) => Notifications.cancelScheduledNotificationAsync(id)));
+  }
+
+  await SecureStore.deleteItemAsync(PREVENTIVE_CARE_REMINDER_IDS_KEY);
   await SecureStore.deleteItemAsync("remi_dental_vision_reminder_id");
+  if (clearPreferences) await SecureStore.deleteItemAsync(PREVENTIVE_CARE_ENABLED_KEY);
+}
+
+function preventiveCareMessage(type: string) {
+  if (type === "dental") return "Worth booking a dental check soon.";
+  if (type === "vision") return "Worth booking a vision check soon.";
+  if (type === "general") return "Worth planning a preventive care check soon.";
+  return "Worth checking in on preventive care soon.";
 }

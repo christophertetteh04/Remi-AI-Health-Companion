@@ -85,3 +85,13 @@ export async function exportHealthSummaryPdf(body: { visitDate?: string; concern
     fileUri,
   };
 }
+
+export async function deleteAccountData(confirmation: "DELETE") {
+  const res = await fetch(`${API_BASE_URL}/account-data`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify({ confirmation }),
+  });
+  if (!res.ok) throw new Error(`Delete account data request failed: ${res.status}`);
+  return res.json();
+}

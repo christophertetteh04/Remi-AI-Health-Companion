@@ -21,7 +21,17 @@
     },
     "android": {
       "package": "com.remi.health",
-      "permissions": ["CAMERA", "RECORD_AUDIO", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES", "USE_BIOMETRIC", "SCHEDULE_EXACT_ALARM"]
-    }
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "USE_BIOMETRIC",
+        "SCHEDULE_EXACT_ALARM"
+      ]
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

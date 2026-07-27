@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import * as SecureStore from "expo-secure-store";
 import { Bell, CalendarClock, Check, Pill, ShieldCheck } from "lucide-react-native";
 import { Card, PrimaryButton } from "../components/UI";
+import DatePickerField from "../components/DatePickerField";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
 import { scheduleMedicationReminder } from "../services/notifications";
@@ -168,7 +169,7 @@ export default function ArtAdherenceScreen({ navigation }: any) {
           <Input label="Daily reminder time" placeholder="08:00" value={plan.reminderTime} onChangeText={(v) => update("reminderTime", v)} keyboardType="numbers-and-punctuation" />
 
           <SectionTitle icon={<CalendarClock size={16} color={colors.primary} />} title="Follow-up" />
-          <Input label="Next clinic or refill date" placeholder="YYYY-MM-DD" value={plan.clinicDate} onChangeText={(v) => update("clinicDate", v)} />
+          <DatePickerField label="Next clinic or refill date" value={plan.clinicDate} onChange={(v) => update("clinicDate", v)} placeholder="Select clinic or refill date" />
           <Input label="Private notes" placeholder="Anything to remember for your visit" value={plan.notes} onChangeText={(v) => update("notes", v)} multiline />
 
           <Pressable onPress={() => update("privacyMode", !plan.privacyMode)} style={styles.checkRow}>

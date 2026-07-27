@@ -13,18 +13,34 @@ export default function OnboardingScreen({ navigation }: any) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [personalizeError, setPersonalizeError] = useState("");
   const [consent, setConsent] = useState(false);
   const [terms, setTerms] = useState(false);
   const { enableLock } = useAppLock();
   const [lockOn, setLockOn] = useState(false);
+  const canContinuePersonalize = name.trim().length > 0 && phone.trim().length > 0;
 
   const finish = async () => {
+    if (!canContinuePersonalize) {
+      setPersonalizeError("Please enter your full name and phone number before continuing.");
+      setStep(1);
+      return;
+    }
     if (!consent || !terms) return;
     if (lockOn) await enableLock();
     await SecureStore.setItemAsync("remi_profile", JSON.stringify({ name: name.trim(), phone: phone.trim(), email: "" }));
     await SecureStore.setItemAsync("remi_onboarded", "true");
     await trackEvent("onboarding_completed");
     navigation.replace("Welcome");
+  };
+
+  const continuePersonalize = () => {
+    if (!canContinuePersonalize) {
+      setPersonalizeError("Please enter your full name and phone number before continuing.");
+      return;
+    }
+    setPersonalizeError("");
+    setStep(2);
   };
 
   const StepDots = () => (
@@ -87,13 +103,35 @@ export default function OnboardingScreen({ navigation }: any) {
           <Text style={styles.h1Small}>Personalize your Remi space</Text>
           <Text style={styles.body}>Your name helps Remi greet you properly and keep your dashboard feeling like yours.</Text>
           <View style={styles.formCard}>
-            <Text style={styles.label}>Full name</Text>
-            <TextInput placeholder="e.g. Ama Owusu" placeholderTextColor={colors.inkFaint} value={name} onChangeText={setName} style={styles.input} />
-            <Text style={styles.label}>Phone number</Text>
-            <TextInput placeholder="+233 ..." placeholderTextColor={colors.inkFaint} value={phone} onChangeText={setPhone} style={styles.input} keyboardType="phone-pad" />
+            <Text style={styles.label}>Full name *</Text>
+            <TextInput
+              placeholder="e.g. Ama Owusu"
+              placeholderTextColor={colors.inkFaint}
+              value={name}
+              onChangeText={(value) => {
+                setName(value);
+                if (personalizeError) setPersonalizeError("");
+              }}
+              style={[styles.input, personalizeError && !name.trim() ? styles.inputError : null]}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+            <Text style={styles.label}>Phone number *</Text>
+            <TextInput
+              placeholder="+233 ..."
+              placeholderTextColor={colors.inkFaint}
+              value={phone}
+              onChangeText={(value) => {
+                setPhone(value);
+                if (personalizeError) setPersonalizeError("");
+              }}
+              style={[styles.input, personalizeError && !phone.trim() ? styles.inputError : null]}
+              keyboardType="phone-pad"
+            />
+            {personalizeError ? <Text style={styles.fieldError}>{personalizeError}</Text> : null}
           </View>
           <View style={styles.bottomActions}>
-            <PrimaryButton title="Continue" onPress={() => setStep(2)} />
+            <PrimaryButton title="Continue" onPress={continuePersonalize} style={{ opacity: canContinuePersonalize ? 1 : 0.45 }} />
             <Pressable onPress={() => setStep(0)} style={styles.backButton}>
               <Text style={styles.backText}>Back</Text>
             </Pressable>
@@ -190,6 +228,8 @@ const styles = StyleSheet.create({
   disclaimer: { backgroundColor: colors.peachDim, borderRadius: 12, padding: 14, marginBottom: 14 },
   disclaimerText: { color: colors.peach, fontFamily: fonts.body, fontSize: 12, lineHeight: 17 },
   input: { backgroundColor: colors.bg, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 16, paddingVertical: 14, color: colors.ink, fontFamily: fonts.body, fontSize: 14, marginBottom: 12 },
+  inputError: { borderColor: colors.urgent, backgroundColor: colors.urgentDim },
+  fieldError: { color: colors.urgent, fontFamily: fonts.bodySemiBold, fontSize: 12, lineHeight: 17, marginTop: -2, marginBottom: 4 },
   checkRow: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.bg, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 14, marginBottom: 10 },
   checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: colors.hairline, alignItems: "center", justifyContent: "center", marginRight: 12, marginTop: 1 },
   checkText: { flex: 1, color: colors.ink, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },

@@ -20,6 +20,7 @@ import { WomensHealthModule } from "./womens-health/womens-health.module";
 import { LifestyleModule } from "./lifestyle/lifestyle.module";
 import { HealthSummaryModule } from "./health-summary/health-summary.module";
 import { PosthogModule } from "./common/posthog.module";
+import { AccountDataModule } from "./account-data/account-data.module";
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PosthogModule } from "./common/posthog.module";
     WomensHealthModule,
     LifestyleModule,
     HealthSummaryModule,
+    AccountDataModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Bell, CalendarCheck, Check, HeartPulse, ShieldCheck, Sparkles, Stethoscope } from "lucide-react-native";
 import { Card, PrimaryButton } from "../components/UI";
+import DatePickerField from "../components/DatePickerField";
 import {
   cancelDentalVisionReminder,
   scheduleAnnualCheckupReminder,
@@ -74,7 +75,7 @@ export default function PreventiveCareScreen() {
 
         <Card style={styles.formCard}>
           <SectionTitle icon={<Stethoscope size={16} color={colors.primary} />} title="Annual check-up" />
-          <Input label="Last general check-up" value={lastVisit} onChangeText={setLastVisit} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" />
+          <DatePickerField label="Last general check-up" value={lastVisit} onChange={setLastVisit} placeholder="Select last visit date" />
           <PrimaryButton title={checkupSet ? "Annual reminder set" : "Set annual reminder"} onPress={setCheckupReminder} />
           {checkupSet ? (
             <View style={styles.savedBanner}>

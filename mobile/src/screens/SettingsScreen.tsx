@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import {
   Accessibility,
   ArrowLeft,
   Bell,
+  BellOff,
+  CalendarCheck,
   ChevronRight,
   Database,
+  Droplets,
+  Edit3,
   FileText,
   HelpCircle,
+  LockKeyhole,
   LogOut,
   Moon,
   Shield,
@@ -18,86 +23,61 @@ import { colors, fonts, spacing } from "../theme/tokens";
 import { Card, ScreenHeader } from "../components/UI";
 import { useAppLock } from "../hooks/useAppLock";
 import { supabase } from "../services/supabaseClient";
+import { defaultProfile, loadProfile, Profile } from "../services/profile";
 import {
-  cancelDentalVisionReminder,
-  cancelHydrationReminder,
-  requestNotificationPermissions,
-  scheduleDentalVisionReminder,
-  scheduleHydrationReminder,
-  scheduleWeeklyVitalsReminder,
+  HEALTH_REMINDERS_ENABLED_KEY,
+  HYDRATION_ENABLED_KEY,
+  PREVENTIVE_CARE_ENABLED_KEY,
+  QUIET_HOURS_ENABLED_KEY,
 } from "../services/notifications";
 import { ANALYTICS_KEY, setAnalyticsEnabled } from "../services/posthog";
-
-const PROFILE_KEY = "remi_profile";
-const QUIET_HOURS_KEY = "remi_quiet_hours";
-const LARGE_TEXT_KEY = "remi_large_text";
-type Profile = { name: string; phone: string; email: string };
-
-const defaultProfile: Profile = { name: "", phone: "", email: "" };
+import { DARK_APPEARANCE_KEY, LARGE_TEXT_KEY, setDarkAppearanceEnabled, setLargeTextEnabled } from "../services/largeText";
 
 export default function SettingsScreen({ navigation }: any) {
   const [profile, setProfile] = useState<Profile>(defaultProfile);
   const [quietHours, setQuietHours] = useState(false);
   const [largeText, setLargeText] = useState(false);
+  const [darkAppearance, setDarkAppearance] = useState(false);
   const [analytics, setAnalytics] = useState(true);
   const [reminders, setReminders] = useState(true);
   const [hydration, setHydration] = useState(false);
   const [preventive, setPreventive] = useState(false);
-  const { lockEnabled, enableLock, disableLock } = useAppLock();
+  const { lockEnabled } = useAppLock();
 
   useEffect(() => {
     (async () => {
-      const storedProfile = await SecureStore.getItemAsync(PROFILE_KEY);
-      if (storedProfile) setProfile(JSON.parse(storedProfile));
-      setQuietHours((await SecureStore.getItemAsync(QUIET_HOURS_KEY)) === "true");
+      setProfile(await loadProfile());
+      setQuietHours((await SecureStore.getItemAsync(QUIET_HOURS_ENABLED_KEY)) === "true");
       setLargeText((await SecureStore.getItemAsync(LARGE_TEXT_KEY)) === "true");
+      setDarkAppearance((await SecureStore.getItemAsync(DARK_APPEARANCE_KEY)) === "true");
       setAnalytics((await SecureStore.getItemAsync(ANALYTICS_KEY)) !== "false");
-      setHydration(!!(await SecureStore.getItemAsync("remi_hydration_reminder_ids")));
-      setPreventive(!!(await SecureStore.getItemAsync("remi_dental_vision_reminder_id")));
+      setReminders((await SecureStore.getItemAsync(HEALTH_REMINDERS_ENABLED_KEY)) === "true");
+      setHydration((await SecureStore.getItemAsync(HYDRATION_ENABLED_KEY)) === "true");
+      setPreventive((await SecureStore.getItemAsync(PREVENTIVE_CARE_ENABLED_KEY)) === "true");
     })();
-  }, []);
-
-  const updateProfile = async (key: keyof Profile, value: string) => {
-    const next = { ...profile, [key]: value };
-    setProfile(next);
-    await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(next));
-  };
-
-  const toggleStored = async (value: boolean, setter: (next: boolean) => void, key: string) => {
-    setter(value);
-    if (value) await SecureStore.setItemAsync(key, "true");
-    else await SecureStore.deleteItemAsync(key);
-  };
+    const unsubscribe = navigation.addListener("focus", async () => {
+      setProfile(await loadProfile());
+      setReminders((await SecureStore.getItemAsync(HEALTH_REMINDERS_ENABLED_KEY)) === "true");
+      setHydration((await SecureStore.getItemAsync(HYDRATION_ENABLED_KEY)) === "true");
+      setQuietHours((await SecureStore.getItemAsync(QUIET_HOURS_ENABLED_KEY)) === "true");
+      setPreventive((await SecureStore.getItemAsync(PREVENTIVE_CARE_ENABLED_KEY)) === "true");
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const toggleAnalytics = async (value: boolean) => {
     setAnalytics(value);
     await setAnalyticsEnabled(value);
   };
 
-  const toggleReminders = async (value: boolean) => {
-    setReminders(value);
-    if (value) {
-      const granted = await requestNotificationPermissions();
-      if (granted) await scheduleWeeklyVitalsReminder();
-      else setReminders(false);
-    }
+  const toggleLargeText = async (value: boolean) => {
+    setLargeText(value);
+    await setLargeTextEnabled(value);
   };
 
-  const toggleHydration = async (value: boolean) => {
-    setHydration(value);
-    if (value) await scheduleHydrationReminder();
-    else await cancelHydrationReminder();
-  };
-
-  const togglePreventive = async (value: boolean) => {
-    setPreventive(value);
-    if (value) await scheduleDentalVisionReminder();
-    else await cancelDentalVisionReminder();
-  };
-
-  const toggleLock = async (value: boolean) => {
-    if (value) await enableLock();
-    else await disableLock();
+  const toggleDarkAppearance = async (value: boolean) => {
+    await setDarkAppearanceEnabled(value);
+    setDarkAppearance(value);
   };
 
   const signOut = () => {
@@ -125,38 +105,51 @@ export default function SettingsScreen({ navigation }: any) {
       <ScreenHeader title="Settings" subtitle="Manage your Remi account, privacy, and reminders" />
       <View style={styles.content}>
         <Section icon={<User size={17} color={colors.primary} />} title="Profile">
-          <Input label="Display name" value={profile.name} onChangeText={(value) => updateProfile("name", value)} />
-          <Input label="Phone number" value={profile.phone} onChangeText={(value) => updateProfile("phone", value)} keyboardType="phone-pad" />
-          <Input label="Email" value={profile.email} onChangeText={(value) => updateProfile("email", value)} keyboardType="email-address" />
+          <View style={styles.profileCard}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>{initials(profile.name || profile.preferredName || "R")}</Text>
+            </View>
+            <View style={styles.profileCopy}>
+              <Text style={styles.profileName}>{profile.name || "Add your name"}</Text>
+              <Text style={styles.profileMeta}>{[profile.phone || "Phone not added", profile.email || "Email not added"].join("  |  ")}</Text>
+              <Text style={styles.profileMeta}>{[profile.language || "Language not set", profile.city || profile.country ? [profile.city, profile.country].filter(Boolean).join(", ") : "Location not set"].join("  |  ")}</Text>
+              {profile.ageGroup ? <Text style={styles.profileFocus}>{profile.ageGroup}: {profile.healthFocus}</Text> : null}
+            </View>
+          </View>
+          <Pressable onPress={() => navigation.navigate("ProfileEdit")} style={styles.editProfileButton}>
+            <Edit3 size={15} color={colors.primary} />
+            <Text style={styles.editProfileText}>Edit profile information</Text>
+            <ChevronRight size={15} color={colors.primary} />
+          </Pressable>
         </Section>
 
         <Section icon={<Bell size={17} color={colors.primary} />} title="Notifications">
-          <ToggleRow label="Health reminders" detail="Medication, vitals, and care nudges" value={reminders} onValueChange={toggleReminders} />
-          <ToggleRow label="Hydration reminders" detail="Morning and afternoon check-ins" value={hydration} onValueChange={toggleHydration} />
-          <ToggleRow label="Preventive care reminders" detail="Dental and vision planning" value={preventive} onValueChange={togglePreventive} />
-          <ToggleRow label="Quiet hours" detail="Reduce non-urgent alerts overnight" value={quietHours} onValueChange={(v) => toggleStored(v, setQuietHours, QUIET_HOURS_KEY)} />
+          <NavRow label="Health reminders" detail={reminders ? "On: weekly health nudges selected" : "Choose vitals, check-in, or medication review nudges"} icon={<Bell size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("HealthReminderSettings")} />
+          <NavRow label="Hydration reminders" detail={hydration ? "On: daily water reminders selected" : "Choose daily water reminder times"} icon={<Droplets size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("HydrationReminderSettings")} />
+          <NavRow label="Preventive care reminders" detail={preventive ? "On: dental, vision, or check-up nudges" : "Choose routine care reminder options"} icon={<CalendarCheck size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("PreventiveReminderSettings")} />
+          <NavRow label="Quiet hours" detail={quietHours ? "On: routine alerts are quiet overnight" : "Choose when routine alerts stay quiet"} icon={<BellOff size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("QuietHoursSettings")} />
         </Section>
 
         <Section icon={<Shield size={17} color={colors.primary} />} title="Privacy and safety">
-          <ToggleRow label="App lock" detail="Require Face ID, fingerprint, or passcode" value={lockEnabled} onValueChange={toggleLock} />
+          <NavRow label="App lock" detail={lockEnabled ? "On: device unlock required" : "Choose Face ID, fingerprint, or passcode"} icon={<LockKeyhole size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("AppLockSettings")} />
           <NavRow label="Emergency information" detail="Blood type, allergies, medication, contacts" onPress={() => navigation.navigate("EmergencySettings")} />
-          <NavRow label="Privacy policy" detail="How Remi handles health information" />
+          <NavRow label="Privacy policy" detail="How Remi handles health information" onPress={() => navigation.navigate("PrivacyPolicy")} />
         </Section>
 
         <Section icon={<Accessibility size={17} color={colors.primary} />} title="Accessibility">
-          <ToggleRow label="Larger text" detail="Use roomier app text where supported" value={largeText} onValueChange={(v) => toggleStored(v, setLargeText, LARGE_TEXT_KEY)} />
-          <ToggleRow label="Dark appearance" detail="Coming soon" value={false} onValueChange={() => {}} disabled icon={<Moon size={15} color={colors.inkFaint} />} />
+          <ToggleRow label="Larger text" detail="Increase text size across Remi" value={largeText} onValueChange={toggleLargeText} />
+          <ToggleRow label="Dark appearance" detail="Use a darker, lower-glare interface" value={darkAppearance} onValueChange={toggleDarkAppearance} icon={<Moon size={15} color={colors.inkFaint} />} />
         </Section>
 
         <Section icon={<Database size={17} color={colors.primary} />} title="Data">
           <ToggleRow label="Share product analytics" detail="Uses PostHog event counts only; no chat, lab, or medication text" value={analytics} onValueChange={toggleAnalytics} />
-          <NavRow label="Export health data" detail="Prepare a copy of your saved records" />
-          <NavRow label="Delete account data" detail="Request removal of Remi data" destructive />
+          <NavRow label="Export health data" detail="Prepare a copy of your saved records" onPress={() => navigation.navigate("ExportHealthData")} />
+          <NavRow label="Delete account data" detail="Permanently remove your Remi records" destructive onPress={() => navigation.navigate("DeleteAccountData")} />
         </Section>
 
         <Section icon={<HelpCircle size={17} color={colors.primary} />} title="Support">
-          <NavRow label="Help center" detail="Guides, FAQs, and contact options" />
-          <NavRow label="Terms of service" detail="App usage terms" icon={<FileText size={15} color={colors.inkFaint} />} />
+          <NavRow label="Help center" detail="Guides, FAQs, and contact options" onPress={() => navigation.navigate("HelpCenter")} />
+          <NavRow label="Terms of service" detail="App usage terms" icon={<FileText size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("TermsOfService")} />
           <View style={styles.aboutRow}>
             <Text style={styles.aboutLabel}>Remi version</Text>
             <Text style={styles.aboutValue}>0.1.0</Text>
@@ -184,15 +177,6 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
   );
 }
 
-function Input({ label, ...props }: { label: string; value: string; onChangeText: (value: string) => void; keyboardType?: "default" | "email-address" | "phone-pad" }) {
-  return (
-    <View style={styles.inputWrap}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <TextInput placeholderTextColor={colors.inkFaint} style={styles.input} autoCapitalize="none" {...props} />
-    </View>
-  );
-}
-
 function ToggleRow({
   label,
   detail,
@@ -215,7 +199,14 @@ function ToggleRow({
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.rowDetail}>{detail}</Text>
       </View>
-      <Switch value={value} onValueChange={onValueChange} disabled={disabled} trackColor={{ false: colors.hairline, true: colors.primaryDim }} thumbColor={value ? colors.primary : colors.surface} />
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ false: colors.surfaceRaised, true: colors.primaryDim }}
+        thumbColor={value ? colors.primary : colors.inkFaint}
+        ios_backgroundColor={colors.surfaceRaised}
+      />
     </View>
   );
 }
@@ -233,6 +224,15 @@ function NavRow({ label, detail, onPress, destructive, icon }: { label: string; 
   );
 }
 
+function initials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 const styles = StyleSheet.create({
   topBar: { paddingHorizontal: spacing.xl, paddingTop: 54, marginBottom: -6 },
   backButton: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, alignItems: "center", justifyContent: "center" },
@@ -241,9 +241,15 @@ const styles = StyleSheet.create({
   sectionTitleRow: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
   sectionIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 10 },
   sectionTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 15 },
-  inputWrap: { marginBottom: 10 },
-  inputLabel: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 10.5, marginBottom: 6 },
-  input: { backgroundColor: colors.bg, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 12, paddingVertical: 11, color: colors.ink, fontFamily: fonts.body, fontSize: 13.5 },
+  profileCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.bg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 14 },
+  profileAvatar: { width: 50, height: 50, borderRadius: 16, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  profileAvatarText: { color: colors.bg, fontFamily: fonts.display, fontSize: 17 },
+  profileCopy: { flex: 1 },
+  profileName: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 15 },
+  profileMeta: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, lineHeight: 16, marginTop: 3 },
+  profileFocus: { color: colors.primary, fontFamily: fonts.bodyMedium, fontSize: 11.5, lineHeight: 16, marginTop: 6 },
+  editProfileButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primaryDim, borderRadius: 999, marginTop: 12 },
+  editProfileText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 13 },
   row: { minHeight: 58, flexDirection: "row", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline, paddingVertical: 12 },
   rowIcon: { marginRight: 10 },
   rowCopy: { flex: 1, paddingRight: 12 },

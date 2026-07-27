@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from "react";
+import { Alert, StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import * as Sentry from "@sentry/react-native";
 import RootNavigator from "./src/navigation/RootNavigator";
 import LockScreen from "./src/screens/LockScreen";
 import SplashScreen from "./src/screens/SplashScreen";
+import RemiAlertHost from "./src/components/RemiAlertHost";
 import { useAppLock } from "./src/hooks/useAppLock";
 import { supabase } from "./src/services/supabaseClient";
 import { navigateFromNotification } from "./src/navigation/navigationRef";
 import { restoreAccountDataIfNeeded } from "./src/services/accountRecovery";
+import { installLargeTextScaling, loadDarkAppearanceEnabled, loadLargeTextEnabled, subscribeLargeText } from "./src/services/largeText";
+import { installRemiAlert } from "./src/services/remiAlert";
+import { colors } from "./src/theme/tokens";
 import { useFonts as usePlusJakarta, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold } from "@expo-google-fonts/plus-jakarta-sans";
 import { useFonts as useJetBrainsMono, JetBrainsMono_400Regular } from "@expo-google-fonts/jetbrains-mono";
 
@@ -21,12 +26,15 @@ const sentryDsn = (process.env.EXPO_PUBLIC_SENTRY_DSN ?? "").trim();
 if (sentryDsn && !sentryDsn.startsWith("your-")) {
   Sentry.init({ dsn: sentryDsn, tracesSampleRate: 0.2 });
 }
+installLargeTextScaling();
+installRemiAlert(Alert);
 
 export default function App() {
   const [ready, setReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
+  const [displayVersion, setDisplayVersion] = useState(0);
   const { lockEnabled, unlocked, checking: lockChecking, attemptUnlock } = useAppLock();
 
   const [bodyLoaded] = usePlusJakarta({ PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold });
@@ -35,8 +43,11 @@ export default function App() {
 
   useEffect(() => {
     const splashTimer = setTimeout(() => setSplashDone(true), 1500);
+    const unsubscribeLargeText = subscribeLargeText(() => setDisplayVersion((version) => version + 1));
 
     (async () => {
+      await loadDarkAppearanceEnabled();
+      await loadLargeTextEnabled();
       if (supabase) {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
@@ -67,6 +78,7 @@ export default function App() {
     });
     return () => {
       clearTimeout(splashTimer);
+      unsubscribeLargeText();
       removeNotificationListener();
     };
   }, []);
@@ -86,7 +98,9 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <RootNavigator hasSession={hasSession} onboarded={onboarded} />
+      <StatusBar barStyle={colors.bg === "#090D13" ? "light-content" : "dark-content"} backgroundColor={colors.bg} />
+      <RootNavigator hasSession={hasSession} onboarded={onboarded} displayVersion={displayVersion} />
+      <RemiAlertHost />
     </SafeAreaProvider>
   );
 }

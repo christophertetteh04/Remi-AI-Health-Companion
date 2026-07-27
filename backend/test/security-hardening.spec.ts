@@ -1,4 +1,4 @@
-import { BadRequestException, HttpStatus, UnauthorizedException, ValidationPipe } from "@nestjs/common";
+import { BadRequestException, HttpStatus, Logger, UnauthorizedException, ValidationPipe } from "@nestjs/common";
 import { AuthGuard } from "../src/auth/auth.guard";
 import { SubmitVitalsDto } from "../src/vitals/dto/vitals.dto";
 import { ProductionExceptionFilter } from "../src/common/production-exception.filter";
@@ -56,14 +56,20 @@ describe("OWASP hardening", () => {
   it("masks detailed exception messages in production responses", () => {
     const previous = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
+    const logSpy = jest.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
     const { context, response } = httpContext();
 
-    new ProductionExceptionFilter().catch(new Error("database password leaked in stack"), context);
+    try {
+      new ProductionExceptionFilter().catch(new Error("database password leaked in stack"), context);
 
-    expect(response.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
-    expect(response.json.mock.calls[0][0].message).toBe("Something went wrong. Please try again later.");
-    expect(JSON.stringify(response.json.mock.calls[0][0])).not.toContain("database password");
-    process.env.NODE_ENV = previous;
+      expect(response.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+      expect(response.json.mock.calls[0][0].message).toBe("Something went wrong. Please try again later.");
+      expect(JSON.stringify(response.json.mock.calls[0][0])).not.toContain("database password");
+      expect(logSpy).toHaveBeenCalled();
+    } finally {
+      logSpy.mockRestore();
+      process.env.NODE_ENV = previous;
+    }
   });
 
   it("allows only configured browser origins while still allowing origin-less mobile requests", () => {
