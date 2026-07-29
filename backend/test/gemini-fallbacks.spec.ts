@@ -12,6 +12,14 @@ const malformedGemini = () => ({
   })),
 });
 
+const truncatedJsonGemini = () => ({
+  getGenerativeModel: jest.fn(() => ({
+    generateContent: jest.fn().mockResolvedValue({
+      response: { text: () => '{"reply":"That sounds rough, please get checked if it keeps going' },
+    }),
+  })),
+});
+
 const encryption = {
   encrypt: jest.fn((value: string) => `encrypted:${value}`),
   decrypt: jest.fn((value: string) => value),
@@ -32,6 +40,22 @@ describe("Gemini malformed output fallbacks", () => {
     expect(result.urgency).toBe("normal");
     expect(result.reply.length).toBeGreaterThan(20);
     expect(result.reply).toMatch(/\?/);
+  });
+
+  it("CheckinsService repairs a truncated reply JSON string when possible", async () => {
+    const previousGeminiKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    const service = new CheckinsService();
+    (service as any).gemini = truncatedJsonGemini();
+
+    const result = await service.handleMessage("I have a mild cough", []);
+
+    expect(result.crisisDetected).toBe(false);
+    expect(result.urgency).toBe("normal");
+    expect(result.reply).toContain("That sounds rough");
+
+    if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousGeminiKey;
   });
 
   it("LabsService falls back when Gemini returns malformed JSON", async () => {
