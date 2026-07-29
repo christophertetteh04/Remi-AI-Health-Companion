@@ -4,6 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { colors, fonts, spacing } from "../theme/tokens";
 import { PrimaryButton } from "../components/UI";
 import { ArrowLeft, HeartPulse, Phone, Pill, ShieldCheck, Siren, Sparkles } from "lucide-react-native";
+import { authHeader } from "../services/api";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 const STORAGE_KEY = "remi_emergency_info";
@@ -33,10 +34,9 @@ export default function EmergencySettingsScreen({ navigation }: any) {
     // (see AI-BUILD-PROMPTS.md #10, account recovery) — failure here
     // must never block the local save above.
     try {
-      const token = await SecureStore.getItemAsync("remi_session_token");
       await fetch(`${API_BASE_URL}/emergency-info`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify(info),
       });
     } catch {

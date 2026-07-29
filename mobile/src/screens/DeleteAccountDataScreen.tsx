@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { AlertTriangle, ArrowLeft, Database, LockKeyhole, ShieldAlert, Trash2 } from "lucide-react-native";
 import { colors, fonts, spacing } from "../theme/tokens";
-import { deleteAccountData } from "../services/api";
+import { deleteAccountData, REFRESH_TOKEN_KEY, SESSION_TOKEN_KEY } from "../services/api";
 import { supabase } from "../services/supabaseClient";
 
 const LOCAL_KEYS = [
-  "remi_session_token",
+  SESSION_TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
   "remi_onboarded",
   "remi_profile",
   "remi_emergency_info",
@@ -19,6 +21,8 @@ const LOCAL_KEYS = [
   "remi_lock_enabled",
 ];
 
+const ASYNC_STORAGE_KEYS = ["remi_recent_activity", "remi_chat_memory"];
+
 export default function DeleteAccountDataScreen({ navigation }: any) {
   const [confirmation, setConfirmation] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -26,6 +30,7 @@ export default function DeleteAccountDataScreen({ navigation }: any) {
 
   const clearLocalState = async () => {
     await Promise.all(LOCAL_KEYS.map((key) => SecureStore.deleteItemAsync(key).catch(() => undefined)));
+    await Promise.all(ASYNC_STORAGE_KEYS.map((key) => AsyncStorage.removeItem(key).catch(() => undefined)));
   };
 
   const confirmDelete = () => {

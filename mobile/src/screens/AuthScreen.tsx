@@ -4,6 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { PrimaryButton, GhostButton } from "../components/UI";
 import { showRemiToast } from "../components/RemiToast";
+import { saveSessionTokens } from "../services/api";
 import { supabase, supabaseConfigError } from "../services/supabaseClient";
 import { restoreAccountDataIfNeeded } from "../services/accountRecovery";
 import { trackEvent } from "../services/posthog";
@@ -77,7 +78,7 @@ export default function AuthScreen({ navigation }: any) {
         await SecureStore.deleteItemAsync(REMEMBER_EMAIL_KEY);
       }
       if (data.session?.access_token) {
-        await SecureStore.setItemAsync("remi_session_token", data.session.access_token);
+        await saveSessionTokens(data.session);
         if (mode === "signup") await trackEvent("signup_completed");
         const restored = await restoreAccountDataIfNeeded();
         if (restored) {

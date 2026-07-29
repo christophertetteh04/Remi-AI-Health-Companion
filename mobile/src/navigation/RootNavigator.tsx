@@ -15,7 +15,7 @@ import MedsScreen from "../screens/MedsScreen";
 import VitalsScreen from "../screens/VitalsScreen";
 import EmergencyScreen from "../screens/EmergencyScreen";
 import CrisisScreen from "../screens/CrisisScreen";
-import PrescriptionScanScreen from "../screens/PrescriptionScanScreen";
+import PrescriptionScanScreen from "../screens/PrescriptionScannerScreen";
 import EmergencySettingsScreen from "../screens/EmergencySettingsScreen";
 import LabUploadScreen from "../screens/LabUploadScreen";
 import BodyMapScreen from "../screens/BodyMapScreen";
@@ -23,6 +23,8 @@ import PharmacyLookupScreen from "../screens/PharmacyLookupScreen";
 import SamplePhotoScreen from "../screens/SamplePhotoScreen";
 import ImagingUploadScreen from "../screens/ImagingUploadScreen";
 import ConditionsScreen from "../screens/ConditionsScreen";
+import ConditionEducationScreen from "../screens/ConditionEducationScreen";
+import ConditionPlansScreen from "../screens/ConditionPlansScreen";
 import ArtAdherenceScreen from "../screens/ArtAdherenceScreen";
 import AsthmaRespiratoryScreen from "../screens/AsthmaRespiratoryScreen";
 import KidneyFunctionScreen from "../screens/KidneyFunctionScreen";
@@ -36,6 +38,7 @@ import FirstAidScreen from "../screens/FirstAidScreen";
 import DailyInsightsScreen from "../screens/DailyInsightsScreen";
 import HealthOverviewScreen from "../screens/HealthOverviewScreen";
 import AllActivitiesScreen from "../screens/AllActivitiesScreen";
+import ActivityDetailScreen from "../screens/ActivityDetailScreen";
 import SettingsScreen from "../screens/SettingsScreen";
 import AppLockSettingsScreen from "../screens/AppLockSettingsScreen";
 import QuietHoursSettingsScreen from "../screens/QuietHoursSettingsScreen";
@@ -105,6 +108,7 @@ export default function RootNavigator({ hasSession, onboarded, displayVersion }:
         <Stack.Screen name="Welcome" component={WelcomeAnimationScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="AllActivities" component={AllActivitiesScreen} />
+        <Stack.Screen name="ActivityDetail" component={ActivityDetailScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AppLockSettings" component={AppLockSettingsScreen} />
         <Stack.Screen name="QuietHoursSettings" component={QuietHoursSettingsScreen} />
@@ -125,6 +129,8 @@ export default function RootNavigator({ hasSession, onboarded, displayVersion }:
         <Stack.Screen name="SamplePhoto" component={SamplePhotoScreen} options={{ presentation: "modal" }} />
         <Stack.Screen name="ImagingUpload" component={ImagingUploadScreen} options={{ presentation: "modal" }} />
         <Stack.Screen name="Conditions" component={ConditionsScreen} />
+        <Stack.Screen name="ConditionEducation" component={ConditionEducationScreen} />
+        <Stack.Screen name="ConditionPlans" component={ConditionPlansScreen} />
         <Stack.Screen name="ArtAdherence" component={ArtAdherenceScreen} />
         <Stack.Screen name="AsthmaRespiratory" component={AsthmaRespiratoryScreen} />
         <Stack.Screen name="KidneyFunction" component={KidneyFunctionScreen} />

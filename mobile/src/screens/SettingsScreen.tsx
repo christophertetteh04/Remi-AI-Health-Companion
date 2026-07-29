@@ -32,6 +32,7 @@ import {
 } from "../services/notifications";
 import { ANALYTICS_KEY, setAnalyticsEnabled } from "../services/posthog";
 import { DARK_APPEARANCE_KEY, LARGE_TEXT_KEY, setDarkAppearanceEnabled, setLargeTextEnabled } from "../services/largeText";
+import { clearSessionTokens } from "../services/api";
 
 export default function SettingsScreen({ navigation }: any) {
   const [profile, setProfile] = useState<Profile>(defaultProfile);
@@ -84,11 +85,11 @@ export default function SettingsScreen({ navigation }: any) {
     Alert.alert("Sign out?", "You can sign back in any time.", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Sign out",
-        style: "destructive",
-        onPress: async () => {
-          await supabase?.auth.signOut();
-          await SecureStore.deleteItemAsync("remi_session_token");
+          text: "Sign out",
+          style: "destructive",
+          onPress: async () => {
+            await supabase?.auth.signOut();
+          await clearSessionTokens();
           navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
         },
       },

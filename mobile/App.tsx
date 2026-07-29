@@ -10,9 +10,9 @@ import SplashScreen from "./src/screens/SplashScreen";
 import RemiAlertHost from "./src/components/RemiAlertHost";
 import RemiToast from "./src/components/RemiToast";
 import { useAppLock } from "./src/hooks/useAppLock";
-import { supabase } from "./src/services/supabaseClient";
 import { navigateFromNotification } from "./src/navigation/navigationRef";
 import { restoreAccountDataIfNeeded } from "./src/services/accountRecovery";
+import { getFreshAccessToken } from "./src/services/api";
 import { installLargeTextScaling, loadDarkAppearanceEnabled, loadLargeTextEnabled, subscribeLargeText } from "./src/services/largeText";
 import { installRemiAlert } from "./src/services/remiAlert";
 import { colors } from "./src/theme/tokens";
@@ -50,13 +50,10 @@ export default function App() {
     (async () => {
       await loadDarkAppearanceEnabled();
       await loadLargeTextEnabled();
-      if (supabase) {
-        const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          await SecureStore.setItemAsync("remi_session_token", data.session.access_token);
-          setHasSession(true);
-          await restoreAccountDataIfNeeded();
-        }
+      const accessToken = await getFreshAccessToken();
+      if (accessToken) {
+        setHasSession(true);
+        await restoreAccountDataIfNeeded();
       }
       const onboardedFlag = await SecureStore.getItemAsync("remi_onboarded");
       const isOnboarded = onboardedFlag === "true";
@@ -64,9 +61,10 @@ export default function App() {
       setReady(true);
 
       if (isOnboarded) {
-        const { requestNotificationPermissions, scheduleWeeklyVitalsReminder } = await import("./src/services/notifications");
+        const { requestNotificationPermissions, scheduleWeeklyVitalsReminder, scheduleWeeklyHealthBriefReminder } = await import("./src/services/notifications");
         await requestNotificationPermissions();
         await scheduleWeeklyVitalsReminder();
+        await scheduleWeeklyHealthBriefReminder();
       }
     })();
 
@@ -75,6 +73,7 @@ export default function App() {
       const sub = addNotificationResponseListener((data) => {
         if (data?.type === "medication") navigateFromNotification("Meds");
         if (data?.type === "vitals") navigateFromNotification("Vitals");
+        if (data?.type === "weekly_brief") navigateFromNotification("Chat");
       });
       removeNotificationListener = () => sub.remove();
     });

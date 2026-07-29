@@ -23,4 +23,10 @@ export class SendMessageDto {
   @IsOptional()
   @IsIn(["general", "sexual_health"])
   topic?: "general" | "sexual_health";
+
+  @IsOptional()
+  memoryContext?: {
+    recentActivities?: { title: string; detail: string; type: string; createdAt: string }[];
+    schedules?: { title: string; detail: string; condition?: string }[];
+  };
 }

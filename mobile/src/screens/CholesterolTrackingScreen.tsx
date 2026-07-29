@@ -8,6 +8,8 @@ import { ConditionLeavePrompt } from "../components/ConditionLeavePrompt";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
 import { scheduleCholesterolLabReminder, scheduleMedicationReminder } from "../services/notifications";
+import { showRemiToast } from "../components/RemiToast";
+import { openConditionEducationAfterSave } from "../services/conditionNavigation";
 
 const STORAGE_KEY = "remi_cholesterol_tracking_plan";
 const MED_REMINDER_ID = "cholesterol-medication-daily";
@@ -166,6 +168,9 @@ export default function CholesterolTrackingScreen({ navigation }: any) {
     setSavedSnapshot(JSON.stringify(next));
     setSaved(true);
     setSaving(false);
+    showRemiToast("Data saved", "Your cholesterol tracking plan has been saved.", "bottom");
+    leavingRef.current = true;
+    openConditionEducationAfterSave(navigation, "cholesterol");
   };
 
   return (

@@ -6,8 +6,10 @@ import { Card, PrimaryButton } from "../components/UI";
 import DatePickerField from "../components/DatePickerField";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
-import { scheduleMedicationReminder } from "../services/notifications";
+import { scheduleMedicationReminder, schedulePlanDateReminder } from "../services/notifications";
 import { ConditionLeavePrompt } from "../components/ConditionLeavePrompt";
+import { showRemiToast } from "../components/RemiToast";
+import { openConditionEducationAfterSave } from "../services/conditionNavigation";
 
 const STORAGE_KEY = "remi_art_adherence_plan";
 const REMINDER_ID = "art-adherence-daily";
@@ -129,6 +131,7 @@ export default function ArtAdherenceScreen({ navigation }: any) {
     const hour = Number(hourStr) || 8;
     const minute = Number(minuteStr) || 0;
     await scheduleMedicationReminder(REMINDER_ID, hour, minute);
+    await schedulePlanDateReminder("remi_art_clinic_reminder_id", next.clinicDate, "Remi reminder", "Your ART clinic or refill follow-up is due today.", { type: "medication", condition: "hiv_art_adherence" });
     await addRecentActivity({
       type: "medication",
       title: "ART adherence plan updated",
@@ -139,6 +142,9 @@ export default function ArtAdherenceScreen({ navigation }: any) {
     setSavedSnapshot(JSON.stringify(next));
     setSaved(true);
     setSaving(false);
+    showRemiToast("Data saved", "Your ART adherence plan has been saved.", "bottom");
+    leavingRef.current = true;
+    openConditionEducationAfterSave(navigation, "hiv_art_adherence");
   };
 
   return (

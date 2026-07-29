@@ -14,6 +14,15 @@ export const TRACKABLE_CONDITIONS = [
   "kidney",
   "cholesterol",
   "thyroid",
+  "hepatitis_a",
+  "hepatitis_b",
+  "hepatitis_c",
+  "hepatitis_d",
+  "hepatitis_e",
+  "diabetes_type_1",
+  "diabetes_type_2",
+  "gestational_diabetes",
+  "hypertension",
 ] as const;
 
 @Injectable()

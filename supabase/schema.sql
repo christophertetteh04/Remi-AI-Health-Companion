@@ -26,6 +26,37 @@ create table if not exists symptom_episodes (
   created_at timestamptz default now()
 );
 
+create table if not exists chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade,
+  role text check (role in ('user','bot')) not null,
+  encrypted_text text, -- encrypted chat message text
+  image_uri text, -- local or signed image reference used by the app to re-render chat media
+  urgency text check (urgency in ('normal','monitor','urgent')),
+  client_created_at timestamptz not null,
+  sort_index int default 0,
+  created_at timestamptz default now()
+);
+alter table chat_messages enable row level security;
+create policy "Users can manage own chat messages" on chat_messages
+  for all using (user_id in (select id from users where auth_user_id = auth.uid()));
+
+create table if not exists recent_activities (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade,
+  client_id text not null,
+  activity_type text check (activity_type in ('chat','lab','vitals','medication','lifestyle','safety')),
+  title text not null,
+  detail text,
+  route text,
+  client_created_at timestamptz not null,
+  sort_index int default 0,
+  created_at timestamptz default now()
+);
+alter table recent_activities enable row level security;
+create policy "Users can manage own recent activities" on recent_activities
+  for all using (user_id in (select id from users where auth_user_id = auth.uid()));
+
 -- Run this once via the Supabase dashboard (Storage > New bucket),
 -- or via the CLI: keep it PRIVATE, not public, since these are
 -- symptom photos. Signed URLs (created in symptom-media.service.ts)
@@ -146,7 +177,7 @@ create policy "Users can manage own menopause entries" on menopause_entries
 create table if not exists tracked_conditions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  condition text not null, -- 'sickle_cell' | 'hiv_art_adherence' | 'asthma' | 'kidney' | 'cholesterol' | 'thyroid'
+  condition text not null, -- see backend TRACKABLE_CONDITIONS
   enabled boolean default true,
   created_at timestamptz default now(),
   unique (user_id, condition)

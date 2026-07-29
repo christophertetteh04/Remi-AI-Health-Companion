@@ -1,16 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { Alert, Animated, Easing, Image, Modal, View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
 import { colors, fonts, urgencyColor } from "../theme/tokens";
-import { Camera, FileText, FlaskConical, HeartPulse, Mic, ScanLine, Send, ShieldCheck, Sparkles, Square, Trash2, Venus } from "lucide-react-native";
-import { authHeader, type CheckinTopic, sendCheckinMessage } from "../services/api";
-import { startRecording, stopRecordingAndTranscribe, cancelRecording } from "../services/voiceRecording";
+import { Camera, FileText, FlaskConical, HeartPulse, Mic, ScanLine, Send, ShieldCheck, Sparkles, Square, Trash2, Venus, X } from "lucide-react-native";
+import { getFreshAccessToken, type CheckinTopic, sendCheckinMessage } from "../services/api";
+import { startRecording, stopRecordingAndTranscribe, cancelRecording, cancelTranscription } from "../services/voiceRecording";
 import * as ImagePicker from "expo-image-picker";
 import { addRecentActivity } from "../services/recentActivity";
-import { trackEvent } from "../services/posthog";
+import { clearChatMemory, loadChatMemory, saveChatMemory } from "../services/chatMemory";
+import { buildHealthMemoryContext } from "../services/healthMemory";
+import { analyticsRequestHeader, trackEvent } from "../services/posthog";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
+const BODY_LOCATIONS = ["Head", "Chest", "Abdomen", "Arm", "Leg", "Back", "Skin", "Other"];
 
-type Msg = { from: "user" | "bot"; text: string; urgency?: "normal" | "monitor" | "urgent"; createdAt: string };
+type Msg = { from: "user" | "bot"; text: string; imageUri?: string; urgency?: "normal" | "monitor" | "urgent"; createdAt: string };
 const sexualHealthPrompt =
   "We can talk about STI symptoms, testing, contraception, periods, pregnancy concerns, or reproductive health. I won't diagnose you. What are you noticing, and when did it start?";
 
@@ -43,23 +47,33 @@ export default function ChatScreen({ navigation }: any) {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [checkinTopic, setCheckinTopic] = useState<CheckinTopic>("general");
+  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const [savingPhoto, setSavingPhoto] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const suggestedPrompts = [
     "I have a headache and feel tired",
     "Help me understand my symptoms",
-    "Remind me what to track today",
+    "Give me my weekly health brief",
   ];
+
+  useEffect(() => {
+    loadChatMemory().then((stored) => {
+      if (stored.length) setMessages(stored);
+    });
+  }, []);
 
   const send = async () => {
     if (!input.trim()) return;
     const userMsg = makeMessage({ from: "user", text: input });
     const next = [...messages, userMsg];
     setMessages(next);
+    await saveChatMemory(next);
     setInput("");
     setLoading(true);
     try {
-      const res = await sendCheckinMessage(input, next.map(({ from, text }) => ({ from, text })), checkinTopic);
+      const memoryContext = await buildHealthMemoryContext();
+      const res = await sendCheckinMessage(input, messages.map(({ from, text }) => ({ from, text })), checkinTopic, memoryContext);
       await trackEvent("checkin_message_sent", { tier: res.urgency });
       if (res.crisisDetected) {
         await trackEvent("crisis_protocol_triggered");
@@ -72,9 +86,14 @@ export default function ChatScreen({ navigation }: any) {
         detail: res.urgency === "urgent" ? "Urgent guidance was recommended" : "Conversation saved from Chat",
         route: "Chat",
       });
-      setMessages([...next, makeMessage({ from: "bot", text: res.reply, urgency: res.urgency })]);
-    } catch (e) {
-      setMessages([...next, makeMessage({ from: "bot", text: "I couldn't reach the server just now — please try again." })]);
+      const updated = [...next, makeMessage({ from: "bot", text: res.reply, urgency: res.urgency })];
+      setMessages(updated);
+      await saveChatMemory(updated);
+    } catch (e: any) {
+      console.log("Check-in chat error:", e?.message || String(e));
+      const updated = [...next, makeMessage({ from: "bot", text: "I’m having trouble connecting to Remi right now. Please check that the backend is running, then try again." })];
+      setMessages(updated);
+      await saveChatMemory(updated);
     } finally {
       setLoading(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -84,11 +103,13 @@ export default function ChatScreen({ navigation }: any) {
   const startSexualHealthCheckin = () => {
     if (checkinTopic === "sexual_health") return;
     setCheckinTopic("sexual_health");
-    setMessages((prev) => [
-      ...prev,
+    const updated = [
+      ...messages,
       makeMessage({ from: "user", text: "Sexual health" }),
       makeMessage({ from: "bot", text: sexualHealthPrompt }),
-    ]);
+    ];
+    setMessages(updated);
+    saveChatMemory(updated);
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   };
 
@@ -100,35 +121,75 @@ export default function ChatScreen({ navigation }: any) {
     setInput("");
     setCheckinTopic("general");
     setMessages([]);
+    clearChatMemory();
   };
 
-  const capturePhoto = async () => {
-    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6 });
-    if (result.canceled) return;
-    const photoBase64 = result.assets[0].base64!;
+  const chooseSymptomPhoto = () => {
+    Alert.alert("Add symptom photo", "Choose how you want to add a photo.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Take photo", onPress: () => pickSymptomPhoto("camera") },
+      { text: "Upload image", onPress: () => pickSymptomPhoto("library") },
+    ]);
+  };
 
-    // Location confirmation happens BEFORE anything is saved — the
-    // app records only where the photo is of, never what it shows.
-    navigation.navigate("BodyMap", {
-      onSelect: async (locationLabel: string) => {
-        try {
-          await fetch(`${API_BASE_URL}/symptom-media/upload`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(await authHeader()) },
-            body: JSON.stringify({ imageBase64: photoBase64, bodyLocation: locationLabel }),
-          });
-          await addRecentActivity({
-            type: "chat",
-            title: "Symptom photo added",
-            detail: `Location: ${locationLabel}`,
-            route: "Chat",
-          });
-          setMessages((prev) => [...prev, makeMessage({ from: "user", text: `📷 Photo attached - location: ${locationLabel}` })]);
-        } catch {
-          setMessages((prev) => [...prev, makeMessage({ from: "bot", text: "Couldn't save that photo just now - please try again." })]);
-        }
-      },
-    });
+  const pickSymptomPhoto = async (source: "camera" | "library") => {
+    const permission =
+      source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setMessages((prev) => [...prev, makeMessage({ from: "bot", text: source === "camera" ? "Camera permission is needed to take a symptom photo." : "Photo library permission is needed to upload an image." })]);
+      return;
+    }
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync({ base64: false, quality: 0.25, allowsEditing: false })
+        : await ImagePicker.launchImageLibraryAsync({ base64: false, quality: 0.25, allowsEditing: false, mediaTypes: ["images"] });
+    if (result.canceled) return;
+    const uri = result.assets[0]?.uri;
+    if (!uri) {
+      setMessages((prev) => [...prev, makeMessage({ from: "bot", text: "I couldn't read that image. Please try another photo." })]);
+      return;
+    }
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info.exists && typeof info.size === "number" && info.size > 6_000_000) {
+      setMessages((prev) => [...prev, makeMessage({ from: "bot", text: "That image is too large. Please try a closer, smaller photo." })]);
+      return;
+    }
+    setPendingPhotoUri(uri);
+  };
+
+  const uploadPendingPhoto = async (locationLabel: string) => {
+    if (!pendingPhotoUri || savingPhoto) return;
+    setSavingPhoto(true);
+    try {
+      const token = await getFreshAccessToken();
+      if (!token) throw new Error("Please sign in again before uploading photos.");
+      const formData = new FormData();
+      formData.append("bodyLocation", locationLabel);
+      formData.append("image", { uri: pendingPhotoUri, name: "symptom-photo.jpg", type: "image/jpeg" } as any);
+      const res = await fetch(`${API_BASE_URL}/symptom-media/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, ...(await analyticsRequestHeader()) },
+        body: formData,
+      });
+      if (!res.ok) throw new Error(`Photo upload failed (${res.status})`);
+      await addRecentActivity({
+        type: "chat",
+        title: "Symptom photo added",
+        detail: `Location: ${locationLabel}`,
+        route: "Chat",
+      });
+      const updated = [...messages, makeMessage({ from: "user", text: `Photo attached - location: ${locationLabel}`, imageUri: pendingPhotoUri })];
+      setMessages(updated);
+      await saveChatMemory(updated);
+      setPendingPhotoUri(null);
+    } catch (error: any) {
+      console.log("Symptom photo upload error:", error?.message || String(error));
+      setMessages((prev) => [...prev, makeMessage({ from: "bot", text: error?.message || "Couldn't save that photo just now. Please try again with a smaller image." })]);
+    } finally {
+      setSavingPhoto(false);
+    }
   };
 
   const toggleRecording = async () => {
@@ -151,9 +212,16 @@ export default function ChatScreen({ navigation }: any) {
     setTranscribing(false);
     if (result.text) {
       setInput((prev) => (prev ? `${prev} ${result.text}` : result.text));
+    } else if (result.error === "Transcription canceled.") {
+      return;
     } else if (result.error) {
       setMessages((prev) => [...prev, makeMessage({ from: "bot", text: result.error! })]);
     }
+  };
+
+  const cancelTranscribing = () => {
+    cancelTranscription();
+    setTranscribing(false);
   };
 
   return (
@@ -205,6 +273,10 @@ export default function ChatScreen({ navigation }: any) {
           <View style={styles.recordingBanner}>
             <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[styles.recordingText, { marginLeft: 8 }]}>Transcribing…</Text>
+            <Pressable onPress={cancelTranscribing} style={styles.cancelTranscribeButton}>
+              <X size={13} color={colors.urgent} />
+              <Text style={styles.cancelTranscribeText}>Cancel</Text>
+            </Pressable>
           </View>
         )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.attachRail}>
@@ -212,7 +284,7 @@ export default function ChatScreen({ navigation }: any) {
             <Venus size={13} color={checkinTopic === "sexual_health" ? colors.mint : colors.inkSoft} />
             <Text style={[styles.attachChipText, checkinTopic === "sexual_health" && styles.topicChipTextActive]}>Sexual health</Text>
           </Pressable>
-          <Pressable onPress={capturePhoto} style={styles.attachChip}>
+          <Pressable onPress={chooseSymptomPhoto} style={styles.attachChip}>
             <Camera size={13} color={colors.inkSoft} />
             <Text style={styles.attachChipText}>Photo</Text>
           </Pressable>
@@ -228,7 +300,7 @@ export default function ChatScreen({ navigation }: any) {
             <ScanLine size={13} color={colors.inkSoft} />
             <Text style={styles.attachChipText}>Scan</Text>
           </Pressable>
-          {checkinTopic === "sexual_health" && (
+          {messages.length > 0 && (
             <Pressable onPress={deleteChat} style={styles.deleteChip}>
               <Trash2 size={13} color={colors.urgent} />
               <Text style={styles.deleteChipText}>Delete chat</Text>
@@ -255,6 +327,25 @@ export default function ChatScreen({ navigation }: any) {
           <Pressable onPress={send} style={styles.sendBtn}><Send size={14} color={colors.bg} /></Pressable>
         </View>
       </View>
+
+      <Modal visible={!!pendingPhotoUri} transparent animationType="fade" onRequestClose={() => setPendingPhotoUri(null)}>
+        <View style={styles.locationBackdrop}>
+          <View style={styles.locationSheet}>
+            <Text style={styles.locationTitle}>Where is this photo from?</Text>
+            <Text style={styles.locationSub}>Remi stores the location label only. The photo is not interpreted by AI.</Text>
+            <View style={styles.locationGrid}>
+              {BODY_LOCATIONS.map((location) => (
+                <Pressable key={location} onPress={() => uploadPendingPhoto(location)} disabled={savingPhoto} style={styles.locationButton}>
+                  <Text style={styles.locationButtonText}>{location}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable onPress={() => setPendingPhotoUri(null)} disabled={savingPhoto} style={styles.locationCancel}>
+              <Text style={styles.locationCancelText}>{savingPhoto ? "Saving..." : "Cancel"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -323,7 +414,8 @@ function MessageBubble({ message: m }: { message: Msg }) {
         )}
         <View style={styles.messageBlock}>
           <View style={[styles.bubble, m.from === "user" ? styles.bubbleUser : styles.bubbleBot]}>
-            <Text style={{ color: m.from === "user" ? colors.bg : colors.ink, fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19 }}>{m.text}</Text>
+            {m.imageUri ? <Image source={{ uri: m.imageUri }} style={styles.messageImage} /> : null}
+            <Text selectable style={{ color: m.from === "user" ? colors.bg : colors.ink, fontFamily: fonts.body, fontSize: 13.5, lineHeight: 19 }}>{m.text}</Text>
           </View>
           <Text style={[styles.timestamp, m.from === "user" ? styles.timestampUser : styles.timestampBot]}>
             {formatMessageTime(m.createdAt)}
@@ -331,13 +423,21 @@ function MessageBubble({ message: m }: { message: Msg }) {
           {m.urgency && (
             <View style={styles.urgencyBadge}>
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: urgencyColor(m.urgency), marginRight: 6 }} />
-              <Text style={{ color: colors.peach, fontFamily: fonts.body, fontSize: 10 }}>Recommend: see a doctor soon</Text>
+              <Text style={{ color: urgencyColor(m.urgency), fontFamily: fonts.bodySemiBold, fontSize: 10 }}>
+                {urgencyLabel(m.urgency)}
+              </Text>
             </View>
           )}
         </View>
       </View>
     </Animated.View>
   );
+}
+
+function urgencyLabel(urgency: "normal" | "monitor" | "urgent") {
+  if (urgency === "urgent") return "Urgent: seek medical care promptly";
+  if (urgency === "monitor") return "Monitor: consider checking with a clinician";
+  return "General guidance";
 }
 
 function TypingIndicator() {
@@ -424,6 +524,7 @@ const styles = StyleSheet.create({
   bubble: { borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, marginBottom: 4 },
   bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.primary, borderBottomRightRadius: 6 },
   bubbleBot: { alignSelf: "flex-start", backgroundColor: colors.surface, borderBottomLeftRadius: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
+  messageImage: { width: 190, height: 150, borderRadius: 12, marginBottom: 9, backgroundColor: colors.surfaceRaised },
   timestamp: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 10.5, marginBottom: 10 },
   timestampUser: { alignSelf: "flex-end", marginRight: 4 },
   timestampBot: { alignSelf: "flex-start", marginLeft: 4 },
@@ -434,6 +535,8 @@ const styles = StyleSheet.create({
   recordingPulse: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: colors.urgent },
   recordingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.urgent },
   recordingText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 11.5 },
+  cancelTranscribeButton: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: "auto", backgroundColor: colors.urgentDim, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
+  cancelTranscribeText: { color: colors.urgent, fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
   typingBubble: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 13, marginBottom: 12 },
   typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.inkFaint },
   attachRail: { gap: 8, paddingBottom: 10, paddingHorizontal: 2 },
@@ -447,4 +550,13 @@ const styles = StyleSheet.create({
   micBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
   input: { flex: 1, maxHeight: 104, color: colors.ink, fontFamily: fonts.body, fontSize: 13, paddingTop: 9, paddingBottom: 9 },
   sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  locationBackdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", justifyContent: "flex-end", padding: 16 },
+  locationSheet: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, shadowColor: "#0F172A", shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
+  locationTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 17 },
+  locationSub: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, marginTop: 6, marginBottom: 14 },
+  locationGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  locationButton: { backgroundColor: colors.bg, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 14, paddingVertical: 10 },
+  locationButtonText: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12 },
+  locationCancel: { alignItems: "center", paddingVertical: 13, marginTop: 10 },
+  locationCancelText: { color: colors.urgent, fontFamily: fonts.bodySemiBold, fontSize: 13 },
 });

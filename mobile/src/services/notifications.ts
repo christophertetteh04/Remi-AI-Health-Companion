@@ -31,6 +31,7 @@ export const HEALTH_REMINDER_IDS_KEY = "remi_health_reminder_ids";
 export const DEFAULT_HEALTH_REMINDER_TYPES = ["vitals", "checkin"];
 export const DEFAULT_HEALTH_REMINDER_DAY = 1;
 export const DEFAULT_HEALTH_REMINDER_TIME = "09:00";
+export const WEEKLY_BRIEF_REMINDER_ID_KEY = "remi_weekly_brief_reminder_id";
 
 async function getNotifications() {
   if (isExpoGo) return null;
@@ -129,6 +130,28 @@ export async function scheduleWeeklyVitalsReminder() {
     time: DEFAULT_HEALTH_REMINDER_TIME,
   });
   return ids?.[0] || null;
+}
+
+export async function scheduleWeeklyHealthBriefReminder() {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const existing = await SecureStore.getItemAsync(WEEKLY_BRIEF_REMINDER_ID_KEY);
+  if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Remi weekly brief",
+      body: "Your weekly health summary is ready in Chat.",
+      data: { type: "weekly_brief" },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 1, hour: 9, minute: 0 },
+  });
+  await SecureStore.setItemAsync(WEEKLY_BRIEF_REMINDER_ID_KEY, id);
+  return id;
 }
 
 export async function scheduleHealthReminders({ types, weekday, time }: { types: string[]; weekday: number; time: string }) {
@@ -341,6 +364,28 @@ export async function scheduleThyroidLabReminder(nextLabISODate: string) {
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
   });
   await SecureStore.setItemAsync("remi_thyroid_lab_reminder_id", id);
+  return id;
+}
+
+export async function schedulePlanDateReminder(reminderKey: string, dateISO: string, title: string, body: string, data: Record<string, string> = {}) {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const target = new Date(dateISO);
+  if (Number.isNaN(target.getTime())) return null;
+  target.setHours(9, 0, 0, 0);
+
+  const existing = await SecureStore.getItemAsync(reminderKey);
+  if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
+
+  const id = await Notifications.scheduleNotificationAsync({
+    content: { title, body, data },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
+  });
+  await SecureStore.setItemAsync(reminderKey, id);
   return id;
 }
 

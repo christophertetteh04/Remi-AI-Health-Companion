@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { colors, radius, fonts } from "../theme/tokens";
-import { Card } from "../components/UI";
+import { Card, PrimaryButton } from "../components/UI";
 import { Pill, Check, AlertTriangle, Camera, ImageUp, Bell, ShieldCheck, Plus, Clock3 } from "lucide-react-native";
 import { getMedications, markMedicationTaken } from "../services/api";
 import { addRecentActivity } from "../services/recentActivity";
+import { navigationRef } from "../navigation/navigationRef";
 
 type Medication = { id: string; name: string; dose: string; time: string; note: string; takenToday: boolean };
 
@@ -37,6 +38,14 @@ export default function MedsScreen({ navigation }: any) {
 
   const takenCount = meds.filter((m) => m.takenToday).length;
   const nextMed = meds.find((m) => !m.takenToday);
+  const openPrescriptionScan = (source?: "camera" | "library") => {
+    const params = source ? { source } : undefined;
+    if (navigationRef.isReady()) {
+      (navigationRef as any).navigate("PrescriptionScan", params);
+      return;
+    }
+    navigation.navigate("PrescriptionScan", params);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -47,9 +56,9 @@ export default function MedsScreen({ navigation }: any) {
             <Text style={styles.title}>Your daily meds</Text>
             <Text style={styles.subtitle}>Prescriptions, doses, and reminders in one place.</Text>
           </View>
-          <View style={styles.headerIcon}>
-            <Pill size={24} color={colors.primary} />
-          </View>
+          <Pressable onPress={() => openPrescriptionScan()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Add prescription" style={styles.headerIcon}>
+            <Plus size={24} color={colors.primary} />
+          </Pressable>
         </View>
 
         <View style={styles.content}>
@@ -85,6 +94,7 @@ export default function MedsScreen({ navigation }: any) {
               <View style={styles.emptyIcon}><Plus size={20} color={colors.primary} /></View>
               <Text style={styles.emptyTitle}>No medications yet</Text>
               <Text style={styles.emptyText}>Add your first prescription from a photo or uploaded image. Remi will help turn it into a reminder you can review.</Text>
+              <PrimaryButton title="Add prescription" onPress={() => openPrescriptionScan()} style={styles.emptyButton} />
             </View>
           )}
 
@@ -127,11 +137,11 @@ export default function MedsScreen({ navigation }: any) {
           <Text style={styles.uploadText}>Camera or image upload</Text>
         </View>
         <View style={styles.uploadActions}>
-          <Pressable onPress={() => navigation.navigate("PrescriptionScan", { source: "camera" })} style={styles.uploadButton}>
+          <Pressable onPress={() => openPrescriptionScan("camera")} style={styles.uploadButton}>
             <Camera size={17} color={colors.primary} />
             <Text style={styles.uploadButtonText}>Camera</Text>
           </Pressable>
-          <Pressable onPress={() => navigation.navigate("PrescriptionScan", { source: "library" })} style={styles.uploadButton}>
+          <Pressable onPress={() => openPrescriptionScan("library")} style={styles.uploadButton}>
             <ImageUp size={17} color={colors.primary} />
             <Text style={styles.uploadButtonText}>Upload</Text>
           </Pressable>
@@ -208,6 +218,7 @@ const styles = StyleSheet.create({
   emptyIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginBottom: 14 },
   emptyTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 16 },
   emptyText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, textAlign: "center", marginTop: 7 },
+  emptyButton: { alignSelf: "stretch", marginTop: 16 },
   uploadTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 14 },
   uploadText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 3 },
   uploadActions: { flexDirection: "row", gap: 8 },

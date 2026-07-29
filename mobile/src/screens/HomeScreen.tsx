@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Animated, Easing, Image, Modal, View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import * as SecureStore from "expo-secure-store";
 import { colors, radius, spacing, fonts } from "../theme/tokens";
 import { Card } from "../components/UI";
 import {
@@ -27,8 +26,10 @@ import {
   X,
 } from "lucide-react-native";
 import { getRecentActivities, type RecentActivity } from "../services/recentActivity";
+import { getUserSchedules, type UserSchedule } from "../services/conditionPlans";
 import { defaultProfile, loadProfile, Profile } from "../services/profile";
 import { supabase } from "../services/supabaseClient";
+import { clearSessionTokens } from "../services/api";
 
 const homeHeroImage = require("../../assets/images/home-dashboard-hero.jpg");
 
@@ -71,6 +72,7 @@ export default function HomeScreen({ navigation }: any) {
   const [profile, setProfile] = useState<Profile>(defaultProfile);
   const [profileVisible, setProfileVisible] = useState(false);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
+  const [schedules, setSchedules] = useState<UserSchedule[]>([]);
   const scrollY = useRef(new Animated.Value(0)).current;
   const heroEntrance = useRef(new Animated.Value(0)).current;
   const quickEntrance = useRef(new Animated.Value(0)).current;
@@ -97,6 +99,9 @@ export default function HomeScreen({ navigation }: any) {
       });
       getRecentActivities().then((items) => {
         if (mounted) setActivities(items);
+      });
+      getUserSchedules().then((items) => {
+        if (mounted) setSchedules(items);
       });
       return () => {
         mounted = false;
@@ -126,11 +131,11 @@ export default function HomeScreen({ navigation }: any) {
     Alert.alert("Sign out?", "You can sign back in any time.", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Sign out",
-        style: "destructive",
-        onPress: async () => {
-          await supabase?.auth.signOut();
-          await SecureStore.deleteItemAsync("remi_session_token");
+          text: "Sign out",
+          style: "destructive",
+          onPress: async () => {
+            await supabase?.auth.signOut();
+          await clearSessionTokens();
           navigation.reset({ index: 0, routes: [{ name: "Auth" }] });
         },
       },
@@ -265,6 +270,34 @@ export default function HomeScreen({ navigation }: any) {
           },
         ]}
       >
+        <Text style={styles.sectionLabel}>REMINDERS</Text>
+        <Card style={styles.scheduleCard}>
+          {schedules.length === 0 ? (
+            <View style={styles.emptyActivity}>
+              <View style={styles.emptyIcon}><CalendarDays size={18} color={colors.primary} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activityTitle}>No schedules yet</Text>
+                <Text style={styles.activitySub}>Saved condition plan reminders and follow-up dates will appear here.</Text>
+              </View>
+            </View>
+          ) : (
+            schedules.slice(0, 4).map((item, index) => (
+              <Pressable
+                key={item.id}
+                onPress={() => item.route && navigation.navigate(item.route)}
+                style={[styles.activityRow, index === Math.min(schedules.length, 4) - 1 && { borderBottomWidth: 0 }]}
+              >
+                <View style={styles.scheduleIcon}><CalendarCheck size={15} color={colors.mint} /></View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={styles.activityTitle}>{item.title}</Text>
+                  <Text style={styles.activitySub}>{item.detail}</Text>
+                </View>
+                <ChevronRight size={15} color={colors.inkFaint} />
+              </Pressable>
+            ))
+          )}
+        </Card>
+
         <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
         <Card style={styles.activityCard}>
           {activities.length === 0 ? (
@@ -280,8 +313,8 @@ export default function HomeScreen({ navigation }: any) {
               const Icon = activityIcon(item.type);
               return (
                 <Pressable
-                  key={item.id}
-                  onPress={() => item.route && navigation.navigate(item.route)}
+                  key={`${item.id}-${index}`}
+                  onPress={() => navigation.navigate("ActivityDetail", { activityId: item.id })}
                   style={[styles.activityRow, index === previewActivities.length - 1 && { borderBottomWidth: 0 }]}
                 >
                   <View style={styles.activityIcon}><Icon size={15} color={colors.primary} /></View>
@@ -289,7 +322,7 @@ export default function HomeScreen({ navigation }: any) {
                     <Text style={styles.activityTitle}>{item.title}</Text>
                     <Text style={styles.activitySub}>{item.detail}</Text>
                   </View>
-                  {item.route ? <ChevronRight size={15} color={colors.inkFaint} /> : null}
+                  <ChevronRight size={15} color={colors.inkFaint} />
                 </Pressable>
               );
             })
@@ -418,6 +451,8 @@ const styles = StyleSheet.create({
   quickSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 2 },
   sectionWrap: { paddingHorizontal: spacing.xl, marginTop: 22 },
   sectionLabel: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 10 },
+  scheduleCard: { paddingVertical: 4, paddingHorizontal: 14, marginBottom: 18 },
+  scheduleIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.mintDim, alignItems: "center", justifyContent: "center" },
   activityCard: { paddingVertical: 4, paddingHorizontal: 14 },
   emptyActivity: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
   emptyIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 11 },

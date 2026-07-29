@@ -1,6 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import * as Sentry from "@sentry/node";
 import { ValidationPipe } from "@nestjs/common";
+import { json } from "body-parser";
 import { AppModule } from "./app.module";
 import { ProductionExceptionFilter } from "./common/production-exception.filter";
 import { corsOptions, securityHeadersMiddleware } from "./common/security-config";
@@ -11,6 +12,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+  app.use(json({ limit: "8mb" }));
   app.use(securityHeadersMiddleware());
   app.useGlobalPipes(
     new ValidationPipe({
@@ -21,6 +23,6 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new ProductionExceptionFilter());
   app.enableCors(corsOptions());
-  await app.listen(process.env.PORT || 3000);
+  await app.listen(process.env.PORT || 3000, process.env.HOST || "0.0.0.0");
 }
 bootstrap();

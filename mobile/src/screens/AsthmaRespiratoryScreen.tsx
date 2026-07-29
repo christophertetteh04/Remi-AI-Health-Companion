@@ -7,6 +7,8 @@ import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
 import { scheduleMedicationReminder } from "../services/notifications";
 import { ConditionLeavePrompt } from "../components/ConditionLeavePrompt";
+import { showRemiToast } from "../components/RemiToast";
+import { openConditionEducationAfterSave } from "../services/conditionNavigation";
 
 const STORAGE_KEY = "remi_asthma_respiratory_plan";
 const REMINDER_ID = "asthma-controller-daily";
@@ -143,6 +145,9 @@ export default function AsthmaRespiratoryScreen({ navigation }: any) {
     setSavedSnapshot(JSON.stringify(next));
     setSaved(true);
     setSaving(false);
+    showRemiToast("Data saved", "Your breathing plan has been saved.", "bottom");
+    leavingRef.current = true;
+    openConditionEducationAfterSave(navigation, "asthma");
   };
 
   return (

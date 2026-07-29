@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { EncryptionService } from "../common/encryption.service";
 import { SupabaseService } from "../common/supabase.service";
 
@@ -24,9 +24,11 @@ or show to a clinician. End by encouraging the patient to confirm
 meaning and next steps with their clinician.
 `;
 
+const GEMINI_MODEL = "gemini-3.6-flash";
+
 @Injectable()
 export class HealthSummaryService {
-  private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -110,17 +112,19 @@ export class HealthSummaryService {
   async doctorPrep(userId: string, visitDate?: string, concern?: string) {
     const bundle = await this.collectPrepBundle(userId);
     const fallback = this.fallbackSummary(bundle, visitDate, concern);
-    if (!process.env.ANTHROPIC_API_KEY) return { summary: fallback, generatedBy: "local", ...bundle };
+    if (!process.env.GEMINI_API_KEY) return { summary: fallback, generatedBy: "local", ...bundle };
 
     try {
-      const response = await this.anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 900,
-        system: PREP_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: JSON.stringify({ visitDate, concern, ...bundle }) }],
+      const model = this.gemini.getGenerativeModel({
+        model: GEMINI_MODEL,
+        systemInstruction: PREP_SYSTEM_PROMPT,
+        generationConfig: { maxOutputTokens: 900 },
       });
-      const summary = response.content.find((content) => content.type === "text")?.text?.trim() || fallback;
-      return { summary, generatedBy: "claude", ...bundle };
+      const response = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: JSON.stringify({ visitDate, concern, ...bundle }) }] }],
+      });
+      const summary = response.response.text()?.trim() || fallback;
+      return { summary, generatedBy: "gemini", ...bundle };
     } catch {
       return { summary: fallback, generatedBy: "local", ...bundle };
     }

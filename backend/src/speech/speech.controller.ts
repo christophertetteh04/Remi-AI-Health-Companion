@@ -1,4 +1,5 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, UploadedFile, UseGuards, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { SpeechService } from "./speech.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { TranscribeAudioDto } from "./dto/speech.dto";
@@ -14,6 +15,12 @@ export class SpeechController {
   // ChatScreen.tsx: nothing here sends a message on the user's behalf.
   @Post("transcribe")
   async transcribe(@Body() body: TranscribeAudioDto) {
-    return this.speechService.transcribe(body.audioBase64);
+    return this.speechService.transcribe(body.audioBase64, body.mimeType);
+  }
+
+  @Post("transcribe-file")
+  @UseInterceptors(FileInterceptor("file"))
+  async transcribeFile(@UploadedFile() file: any) {
+    return this.speechService.transcribeBuffer(file?.buffer, file?.mimetype);
   }
 }

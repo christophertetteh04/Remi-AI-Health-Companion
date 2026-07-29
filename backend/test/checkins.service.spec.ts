@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CheckinsService } from "../src/checkins/checkins.service";
 
-// This test doesn't call the real Anthropic API (no key in CI) — it
+// This test doesn't call the real Gemini API (no key in CI) — it
 // specifically verifies the crisis-keyword fast path, since that
 // must work even if the AI call is slow, fails, or is misconfigured.
 describe("CheckinsService crisis detection", () => {
@@ -28,7 +28,7 @@ describe("CheckinsService crisis detection", () => {
 
 describe("CheckinsService regional pattern note", () => {
   // This test checks the deterministic keyword logic only — it does
-  // NOT call the real Anthropic API, so it can't verify the model's
+  // NOT call the real Gemini API, so it can't verify the model's
   // eventual urgency output, only that the app-level nudge fires
   // correctly before the API call would be made.
   it("recognizes fever+chills as the regional priority pattern", () => {

@@ -6,8 +6,10 @@ import { Card, PrimaryButton } from "../components/UI";
 import DatePickerField from "../components/DatePickerField";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
-import { scheduleKidneyLabReminder } from "../services/notifications";
+import { scheduleKidneyLabReminder, schedulePlanDateReminder } from "../services/notifications";
 import { ConditionLeavePrompt } from "../components/ConditionLeavePrompt";
+import { showRemiToast } from "../components/RemiToast";
+import { openConditionEducationAfterSave } from "../services/conditionNavigation";
 
 const STORAGE_KEY = "remi_kidney_function_plan";
 
@@ -140,6 +142,7 @@ export default function KidneyFunctionScreen({ navigation }: any) {
     setSaving(true);
     await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(next));
     if (next.nextLabDate) await scheduleKidneyLabReminder(next.nextLabDate);
+    if (next.nephrologyDate) await schedulePlanDateReminder("remi_kidney_clinic_reminder_id", next.nephrologyDate, "Remi reminder", "Your kidney clinic follow-up is due today.", { type: "lab", condition: "kidney" });
 
     await addRecentActivity({
       type: "lab",
@@ -152,6 +155,9 @@ export default function KidneyFunctionScreen({ navigation }: any) {
     setSavedSnapshot(JSON.stringify(next));
     setSaved(true);
     setSaving(false);
+    showRemiToast("Data saved", "Your kidney function plan has been saved.", "bottom");
+    leavingRef.current = true;
+    openConditionEducationAfterSave(navigation, "kidney");
   };
 
   return (

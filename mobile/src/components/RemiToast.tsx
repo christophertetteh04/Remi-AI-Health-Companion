@@ -18,15 +18,16 @@ export const remiToastConfig: ToastConfig = {
   ),
 };
 
-export const showRemiToast = (title: string, message: string) => {
+export const showRemiToast = (title: string, message: string, position: "top" | "bottom" = "top") => {
   Toast.show({
     type: "remiInfo",
     text1: title,
     text2: message,
-    position: "top",
+    position,
     visibilityTime: 3200,
     autoHide: true,
     topOffset: 56,
+    bottomOffset: 72,
   });
 };
 

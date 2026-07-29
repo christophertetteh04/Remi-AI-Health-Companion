@@ -11,7 +11,13 @@ export class AdminService {
       .from("users")
       .select("id, full_name, phone, language, created_at");
     if (error) throw error;
-    return data;
+    return (data || []).map((user) => ({
+      id: user.id,
+      displayName: initialsFromName(user.full_name),
+      phone: maskPhone(user.phone),
+      language: user.language || "Not set",
+      created_at: user.created_at,
+    }));
   }
 
   async listFlagged() {
@@ -26,7 +32,21 @@ export class AdminService {
       .select("*")
       .eq("tier", "urgent")
       .order("created_at", { ascending: false });
-    return { symptomEpisodes: episodes || [], vitalsReadings: vitals || [] };
+    return {
+      symptomEpisodes: (episodes || []).map((episode) => ({
+        id: episode.id,
+        type: "symptom_episode",
+        urgency: episode.urgency,
+        doctorRecommended: Boolean(episode.doctor_recommended),
+        created_at: episode.created_at,
+      })),
+      vitalsReadings: (vitals || []).map((reading) => ({
+        id: reading.id,
+        type: "vitals_reading",
+        tier: reading.tier,
+        created_at: reading.created_at,
+      })),
+    };
   }
 
   async listAccessLogs() {
@@ -49,4 +69,22 @@ export class AdminService {
       actor: "admin",
     });
   }
+}
+
+function initialsFromName(name?: string | null) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "Anonymous user";
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function maskPhone(phone?: string | null) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return "Hidden";
+  return `•••• ${digits.slice(-4)}`;
 }

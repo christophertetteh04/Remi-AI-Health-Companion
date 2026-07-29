@@ -7,7 +7,9 @@ import DatePickerField from "../components/DatePickerField";
 import { ConditionLeavePrompt } from "../components/ConditionLeavePrompt";
 import { colors, fonts } from "../theme/tokens";
 import { addRecentActivity } from "../services/recentActivity";
-import { scheduleMedicationReminder, scheduleThyroidLabReminder } from "../services/notifications";
+import { scheduleMedicationReminder, schedulePlanDateReminder, scheduleThyroidLabReminder } from "../services/notifications";
+import { showRemiToast } from "../components/RemiToast";
+import { openConditionEducationAfterSave } from "../services/conditionNavigation";
 
 const STORAGE_KEY = "remi_thyroid_tracking_plan";
 const MED_REMINDER_ID = "thyroid-medication-daily";
@@ -150,6 +152,7 @@ export default function ThyroidTrackingScreen({ navigation }: any) {
     const hour = Number(hourStr) || 7;
     const minute = Number(minuteStr) || 0;
     await scheduleMedicationReminder(MED_REMINDER_ID, hour, minute);
+    await schedulePlanDateReminder("remi_thyroid_followup_reminder_id", next.followUpDate, "Remi reminder", "Your thyroid follow-up appointment is due today.", { type: "lab", condition: "thyroid" });
 
     await addRecentActivity({
       type: "lab",
@@ -162,6 +165,9 @@ export default function ThyroidTrackingScreen({ navigation }: any) {
     setSavedSnapshot(JSON.stringify(next));
     setSaved(true);
     setSaving(false);
+    showRemiToast("Data saved", "Your thyroid tracking plan has been saved.", "bottom");
+    leavingRef.current = true;
+    openConditionEducationAfterSave(navigation, "thyroid");
   };
 
   return (

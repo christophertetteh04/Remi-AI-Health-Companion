@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, Optional } from "@nestjs/common";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SupabaseService } from "../common/supabase.service";
 import { EncryptionService } from "../common/encryption.service";
 import { PosthogService } from "../common/posthog.service";
@@ -20,9 +20,11 @@ Respond ONLY with strict JSON in this shape, no other text:
 }
 `;
 
+const GEMINI_MODEL = "gemini-3.6-flash";
+
 @Injectable()
 export class LabsService {
-  private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -61,22 +63,24 @@ export class LabsService {
   }
 
   async interpretAndCompare(userId: string, imageBase64: string, mediaType: string, analyticsEnabled = true) {
-    const response = await this.anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 800,
-      system: SYSTEM_PROMPT,
-      messages: [
+    const model = this.gemini.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: SYSTEM_PROMPT,
+      generationConfig: { maxOutputTokens: 800, responseMimeType: "application/json" },
+    });
+    const response = await model.generateContent({
+      contents: [
         {
           role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType as any, data: imageBase64 } },
-            { type: "text", text: "Please explain this lab report." },
+          parts: [
+            { inlineData: { mimeType: mediaType, data: imageBase64 } },
+            { text: "Please explain this lab report." },
           ],
         },
       ],
     });
 
-    const text = response.content.find((c) => c.type === "text")?.text || "{}";
+    const text = response.response.text() || "{}";
     let parsed: { testType: string; explanation: string; keyResults: { name: string; value: string; flag: string }[] };
     try {
       parsed = JSON.parse(text);

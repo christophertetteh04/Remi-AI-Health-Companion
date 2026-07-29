@@ -6,7 +6,11 @@ export class SupabaseService {
   public client: SupabaseClient;
 
   constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseUrl = (process.env.SUPABASE_URL || "")
+      .trim()
+      .replace(/^["']|["']$/g, "")
+      .replace(/\/rest\/v1\/?$/i, "")
+      .replace(/\/+$/, "");
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || supabaseUrl.startsWith("your-")) {

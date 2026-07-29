@@ -77,8 +77,8 @@ export default function AllActivitiesScreen({ navigation }: any) {
             const Icon = activityIcon(item.type);
             return (
               <Pressable
-                key={item.id}
-                onPress={() => item.route && navigation.navigate(item.route)}
+                key={`${item.id}-${index}`}
+                onPress={() => navigation.navigate("ActivityDetail", { activityId: item.id })}
                 style={[styles.activityRow, index === activities.length - 1 && { borderBottomWidth: 0 }]}
               >
                 <View style={styles.activityIcon}>
@@ -91,7 +91,7 @@ export default function AllActivitiesScreen({ navigation }: any) {
                   </View>
                   <Text style={styles.activitySub}>{item.detail}</Text>
                 </View>
-                {item.route ? <ChevronRight size={15} color={colors.inkFaint} /> : null}
+                <ChevronRight size={15} color={colors.inkFaint} />
               </Pressable>
             );
           })

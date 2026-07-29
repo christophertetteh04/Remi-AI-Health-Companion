@@ -11,9 +11,13 @@ export class SymptomMediaService {
   ) {}
 
   async storePhoto(userId: string, imageBase64: string, bodyLocation: string) {
-    const fileName = `${userId}/${randomUUID()}.jpg`;
-    const buffer = Buffer.from(imageBase64, "base64");
+    return this.storePhotoBuffer(userId, Buffer.from(imageBase64, "base64"), bodyLocation);
+  }
 
+  async storePhotoBuffer(userId: string, buffer: Buffer, bodyLocation: string) {
+    const fileName = `${userId}/${randomUUID()}.jpg`;
+    if (buffer.length > 6_000_000) throw new Error("Image is too large");
+    await ensureBucket(this.supabase.client, "symptom-photos");
     const { error: uploadError } = await this.supabase.client.storage
       .from("symptom-photos")
       .upload(fileName, buffer, { contentType: "image/jpeg" });
@@ -38,4 +42,11 @@ export class SymptomMediaService {
 
     return { episodeId: episode.id, bodyLocation, photoUrl: signed?.signedUrl };
   }
+}
+
+async function ensureBucket(client: any, bucket: string) {
+  const { data } = await client.storage.getBucket(bucket);
+  if (data) return;
+  const { error } = await client.storage.createBucket(bucket, { public: false });
+  if (error && !/already exists/i.test(error.message || "")) throw error;
 }

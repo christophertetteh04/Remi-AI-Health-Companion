@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { authHeader } from "./api";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 const EMERGENCY_STORAGE_KEY = "remi_emergency_info";
@@ -12,12 +13,9 @@ export async function restoreAccountDataIfNeeded(): Promise<boolean> {
   const alreadyCached = await SecureStore.getItemAsync(EMERGENCY_STORAGE_KEY);
   if (alreadyCached) return false; // nothing to restore, already has local data
 
-  const token = await SecureStore.getItemAsync("remi_session_token");
-  if (!token) return false;
-
   try {
     const res = await fetch(`${API_BASE_URL}/emergency-info`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: await authHeader(),
     });
     if (!res.ok) return false;
     const data = await res.json();

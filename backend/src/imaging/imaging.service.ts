@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SupabaseService } from "../common/supabase.service";
 import { EncryptionService } from "../common/encryption.service";
 import { randomUUID } from "crypto";
@@ -15,9 +15,11 @@ Respond ONLY with strict JSON, no other text:
 { "explanation": string }
 `;
 
+const GEMINI_MODEL = "gemini-3.6-flash";
+
 @Injectable()
 export class ImagingService {
-  private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
   constructor(
     private readonly supabase: SupabaseService,
@@ -57,21 +59,23 @@ export class ImagingService {
     }
 
     // report_text path — same explanation pattern as lab reports.
-    const response = await this.anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 600,
-      system: REPORT_SYSTEM_PROMPT,
-      messages: [
+    const model = this.gemini.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: REPORT_SYSTEM_PROMPT,
+      generationConfig: { maxOutputTokens: 600, responseMimeType: "application/json" },
+    });
+    const response = await model.generateContent({
+      contents: [
         {
           role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
-            { type: "text", text: "Please explain this radiology report." },
+          parts: [
+            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
+            { text: "Please explain this radiology report." },
           ],
         },
       ],
     });
-    const text = response.content.find((c) => c.type === "text")?.text || "{}";
+    const text = response.response.text() || "{}";
     let parsed: { explanation: string };
     try {
       parsed = JSON.parse(text);
