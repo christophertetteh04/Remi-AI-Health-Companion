@@ -41,11 +41,22 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
 
   useEffect(() => {
     if (launchedInitialPicker.current) return;
+    if (route?.params?.imageUri) {
+      launchedInitialPicker.current = true;
+      setImageUri(route.params.imageUri);
+      setDraft(null);
+      if (route.params.imageBase64) {
+        scan(route.params.imageBase64);
+      } else {
+        setDraft(emptyDraft("We couldn't read that image automatically. Please enter the details manually."));
+      }
+      return;
+    }
     if (route?.params?.source !== "camera" && route?.params?.source !== "library") return;
     launchedInitialPicker.current = true;
     const timer = setTimeout(() => pickImage(route.params.source === "camera"), 350);
     return () => clearTimeout(timer);
-  }, [route?.params?.source]);
+  }, [route?.params?.imageUri, route?.params?.source]);
 
   const pickImage = async (fromCamera: boolean) => {
     try {
@@ -134,7 +145,8 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
           frequency: draft.frequency.trim(),
           hour,
           minute,
-          source: "ocr",
+          source: route?.params?.recordSource === "chat" ? "chat" : "ocr",
+          conversationRef: route?.params?.conversationRef,
         }),
       });
       const saved = await res.json();

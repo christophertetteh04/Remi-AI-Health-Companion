@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { colors, fonts } from "../theme/tokens";
@@ -15,12 +15,34 @@ type LabResult = {
   keyResults: { name: string; value: string; flag: string }[];
   comparison: string | null;
 };
+type LabReport = {
+  id: string;
+  test_type?: string;
+  extracted_summary?: string;
+  source?: string;
+  conversation_ref?: string | null;
+  created_at?: string;
+};
 
 export default function LabUploadScreen({ navigation }: any) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<LabResult | null>(null);
   const [error, setError] = useState("");
+  const [reports, setReports] = useState<LabReport[]>([]);
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  const loadReports = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/labs`, { headers: await authHeader() });
+      if (res.ok) setReports(await res.json());
+    } catch {
+      setReports([]);
+    }
+  };
 
   const pickAndUpload = async (fromCamera: boolean) => {
     const picker = fromCamera ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
@@ -41,6 +63,7 @@ export default function LabUploadScreen({ navigation }: any) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setResult(data);
+      await loadReports();
       await addRecentActivity({
         type: "lab",
         title: "Lab result uploaded",
@@ -154,9 +177,27 @@ export default function LabUploadScreen({ navigation }: any) {
             </View>
           </View>
         )}
+
+        {reports.length > 0 && (
+          <View style={styles.reportsSection}>
+            <Text style={styles.sectionLabel}>RECENT LAB REPORTS</Text>
+            {reports.slice(0, 6).map((report) => (
+              <Card key={report.id} style={styles.reportCard}>
+                <Text style={styles.reportTitle}>{report.test_type || "Lab report"}</Text>
+                {report.extracted_summary ? <Text style={styles.reportText} numberOfLines={2}>{report.extracted_summary}</Text> : null}
+                {report.source === "chat" ? <SourceBadge date={report.conversation_ref || report.created_at} /> : null}
+              </Card>
+            ))}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
+}
+
+function SourceBadge({ date }: { date?: string | null }) {
+  const label = date ? new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "your check-in";
+  return <Text style={styles.sourceBadge}>From your check-in on {label}</Text>;
 }
 
 function ActionButton({ icon: Icon, title, detail, onPress }: { icon: any; title: string; detail: string; onPress: () => void }) {
@@ -217,4 +258,9 @@ const styles = StyleSheet.create({
   comparisonCard: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.peachDim, borderRadius: 12, padding: 14 },
   comparisonText: { color: colors.peach, fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
   doneWrap: { marginTop: 4 },
+  reportsSection: { gap: 10, marginTop: 18 },
+  reportCard: { padding: 14 },
+  reportTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.5 },
+  reportText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginTop: 5 },
+  sourceBadge: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 10.5, marginTop: 8 },
 });

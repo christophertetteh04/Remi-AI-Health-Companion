@@ -58,6 +58,31 @@ export async function authHeader() {
 }
 
 export type CheckinTopic = "general" | "sexual_health";
+export type DocumentUploadCategory =
+  | "lab_report"
+  | "prescription"
+  | "scan_report"
+  | "scan_image"
+  | "symptom_photo"
+  | "sample_photo"
+  | "general_medical_document"
+  | "unclear";
+
+export type CheckinUploadResponse = {
+  status:
+    | "processed"
+    | "needs_confirmation"
+    | "needs_body_location"
+    | "needs_sample_type"
+    | "route_to_prescription_confirmation";
+  classification?: {
+    category: DocumentUploadCategory;
+    confidence: "high" | "low";
+  };
+  message?: string;
+  result?: any;
+};
+
 export type ChatMemoryMessage = {
   from: "user" | "bot";
   text: string;
@@ -97,6 +122,31 @@ export async function sendCheckinMessage(
     throw new Error(serverMessage || `Check-in request failed: ${res.status}`);
   }
   return res.json(); // { reply: string, urgency: 'normal'|'monitor'|'urgent', crisisDetected: boolean }
+}
+
+export async function uploadCheckinImage(body: {
+  imageBase64: string;
+  mediaType?: string;
+  conversationRef?: string;
+  confirmedCategory?: DocumentUploadCategory;
+  bodyLocation?: string;
+  sampleType?: "urine" | "stool";
+  scanType?: string;
+}): Promise<CheckinUploadResponse> {
+  const res = await fetch(`${API_BASE_URL}/checkins/upload`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let serverMessage = "";
+    try {
+      const body = await res.json();
+      serverMessage = typeof body?.message === "string" ? body.message : "";
+    } catch {}
+    throw new Error(serverMessage || `Upload request failed: ${res.status}`);
+  }
+  return res.json();
 }
 
 export async function fetchChatMemory() {

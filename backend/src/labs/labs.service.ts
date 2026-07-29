@@ -62,7 +62,7 @@ export class LabsService {
     };
   }
 
-  async interpretAndCompare(userId: string, imageBase64: string, mediaType: string, analyticsEnabled = true) {
+  async interpretAndCompare(userId: string, imageBase64: string, mediaType: string, analyticsEnabled = true, metadata?: { source?: string; conversationRef?: string }) {
     const model = this.gemini.getGenerativeModel({
       model: GEMINI_MODEL,
       systemInstruction: SYSTEM_PROMPT,
@@ -111,6 +111,8 @@ export class LabsService {
         user_id: userId,
         test_type: parsed.testType,
         extracted_summary: this.encryption.encrypt(parsed.explanation),
+        source: metadata?.source || "direct_upload",
+        conversation_ref: metadata?.conversationRef || null,
       })
       .select()
       .single();

@@ -39,7 +39,7 @@ export class ImagingService {
     }));
   }
 
-  async upload(userId: string, imageBase64: string, kind: "report_text" | "scan_image", scanType: string) {
+  async upload(userId: string, imageBase64: string, kind: "report_text" | "scan_image", scanType: string, metadata?: { source?: string; conversationRef?: string }) {
     const fileName = `${userId}/${randomUUID()}.jpg`;
     await this.supabase.client.storage
       .from("imaging-files")
@@ -52,7 +52,7 @@ export class ImagingService {
       // upload path in the whole app that skips the AI entirely.
       const { data: saved } = await this.supabase.client
         .from("imaging_records")
-        .insert({ user_id: userId, kind, scan_type: scanType, photo_path: fileName })
+        .insert({ user_id: userId, kind, scan_type: scanType, photo_path: fileName, source: metadata?.source || "direct_upload", conversation_ref: metadata?.conversationRef || null })
         .select()
         .single();
       return { id: saved?.id, kind, message: "Saved to your health record. This type of image isn't interpreted by the app — bring it to your doctor for review." };
@@ -91,6 +91,8 @@ export class ImagingService {
         scan_type: scanType,
         photo_path: fileName,
         explanation: this.encryption.encrypt(parsed.explanation),
+        source: metadata?.source || "direct_upload",
+        conversation_ref: metadata?.conversationRef || null,
       })
       .select()
       .single();

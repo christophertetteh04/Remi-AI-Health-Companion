@@ -49,3 +49,35 @@ describe("MedicationsService access control", () => {
     expect(secondEq).toHaveBeenCalledWith("user_id", "user-a");
   });
 });
+
+describe("MedicationsService.create", () => {
+  it("retries without conversation_ref when Supabase schema cache is behind", async () => {
+    const single = jest
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          code: "PGRST204",
+          message: "Could not find the 'conversation_ref' column of 'medications' in the schema cache",
+        },
+      })
+      .mockResolvedValueOnce({ data: { id: "med-1", source: "chat" }, error: null });
+    const select = jest.fn(() => ({ single }));
+    const insert = jest.fn((payload: any) => ({ select }));
+    const from = jest.fn(() => ({ insert }));
+    const service = new MedicationsService({ client: { from } } as any);
+
+    const result = await service.create("user-1", {
+      name: "Metformin",
+      dose: "500 mg",
+      frequency: "Daily",
+      source: "chat",
+      conversationRef: "turn-1",
+    });
+
+    expect(result).toEqual({ id: "med-1", source: "chat" });
+    expect(insert).toHaveBeenCalledTimes(2);
+    expect(insert.mock.calls[0][0]).toHaveProperty("conversation_ref", "turn-1");
+    expect(insert.mock.calls[1][0]).not.toHaveProperty("conversation_ref");
+  });
+});

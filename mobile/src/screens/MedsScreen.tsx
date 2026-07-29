@@ -7,7 +7,17 @@ import { getMedications, markMedicationTaken } from "../services/api";
 import { addRecentActivity } from "../services/recentActivity";
 import { navigationRef } from "../navigation/navigationRef";
 
-type Medication = { id: string; name: string; dose: string; time: string; note: string; takenToday: boolean };
+type Medication = {
+  id: string;
+  name: string;
+  dose: string;
+  time: string;
+  note: string;
+  takenToday: boolean;
+  source?: string;
+  conversation_ref?: string | null;
+  created_at?: string;
+};
 
 export default function MedsScreen({ navigation }: any) {
   const [meds, setMeds] = useState<Medication[]>([]);
@@ -105,6 +115,7 @@ export default function MedsScreen({ navigation }: any) {
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.medName}>{m.name}</Text>
                   <Text style={styles.medDose}>{m.dose}</Text>
+                  {m.source === "chat" ? <SourceBadge date={m.conversation_ref || m.created_at} /> : null}
                 </View>
                 <View style={styles.timePill}>
                   <Clock3 size={12} color={colors.inkSoft} />
@@ -149,6 +160,11 @@ export default function MedsScreen({ navigation }: any) {
       </View>
     </View>
   );
+}
+
+function SourceBadge({ date }: { date?: string | null }) {
+  const label = date ? new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "your check-in";
+  return <Text style={styles.sourceBadge}>From your check-in on {label}</Text>;
 }
 
 const styles = StyleSheet.create({
@@ -229,6 +245,7 @@ const styles = StyleSheet.create({
   pillIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
   medName: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 15 },
   medDose: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },
+  sourceBadge: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 10.5, marginTop: 5 },
   timePill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceRaised, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
   medTime: { color: colors.inkSoft, fontFamily: fonts.mono, fontSize: 11 },
   medNote: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginTop: 12 },

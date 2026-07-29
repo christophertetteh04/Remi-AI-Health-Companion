@@ -10,7 +10,8 @@ const KNOWN_DRUGS = [
   "losartan", "atorvastatin", "omeprazole", "artemether", "lumefantrine",
 ];
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
+const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.6-flash"];
 
 const PRESCRIPTION_SCAN_PROMPT = `
 You read prescription label or medication package images for Remi.
@@ -122,33 +123,101 @@ export class PrescriptionsService {
   }
 
   private async identifyMedication(imageBase64: string) {
-    const model = this.gemini.getGenerativeModel({
-      model: GEMINI_MODEL,
-      systemInstruction: PRESCRIPTION_SCAN_PROMPT,
-      generationConfig: { maxOutputTokens: 450, responseMimeType: "application/json" },
-    });
-    const response = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
-            { text: "Identify the medication name and its general purpose from this image." },
+    const configured = process.env.GEMINI_PRESCRIPTIONS_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+    const candidates = [...new Set([configured, ...GEMINI_MODEL_FALLBACKS])];
+    let lastError: unknown;
+
+    for (const modelName of candidates) {
+      try {
+        const model = this.gemini.getGenerativeModel({
+          model: modelName,
+          systemInstruction: PRESCRIPTION_SCAN_PROMPT,
+          generationConfig: { maxOutputTokens: 450, responseMimeType: "application/json" },
+        });
+        const response = await model.generateContent({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
+                { text: "Identify the medication name and its general purpose from this image." },
+              ],
+            },
           ],
-        },
-      ],
-    });
-    const parsed = JSON.parse(response.response.text() || "{}");
-    return {
-      drugName: typeof parsed.drugName === "string" ? parsed.drugName.trim() : "",
-      purpose: typeof parsed.purpose === "string" ? parsed.purpose.trim() : "",
-      confidence: parsed.confidence === "high" || parsed.confidence === "medium" ? parsed.confidence : "low",
-      note: typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : null,
-    };
+        });
+        const parsed = parsePrescriptionJson(response.response.text() || "{}");
+        return normalizePrescriptionDraft(parsed);
+      } catch (error) {
+        lastError = error;
+        if (!isRetryablePrescriptionModelError(error)) throw error;
+      }
+    }
+
+    throw lastError;
   }
 }
 
 function safeErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message.slice(0, 180);
   return String(error).slice(0, 180);
+}
+
+function isRetryablePrescriptionModelError(error: unknown) {
+  const message = safeErrorMessage(error);
+  return /404|not found|not.*supported|models\/.+not|json|unterminated|unexpected token|unexpected end/i.test(message);
+}
+
+function parsePrescriptionJson(text: string) {
+  const extracted = extractJsonObject(text);
+  const jsonText = extracted || text;
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    try {
+      return JSON.parse(repairLooseJson(jsonText));
+    } catch {
+      const salvaged = salvagePrescriptionFields(jsonText);
+      if (Object.keys(salvaged).length) return salvaged;
+      throw new SyntaxError("Could not parse prescription JSON");
+    }
+  }
+}
+
+function extractJsonObject(text: string) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  return text.slice(start, end + 1);
+}
+
+function normalizePrescriptionDraft(parsed: any) {
+  return {
+    drugName: typeof parsed.drugName === "string" ? parsed.drugName.trim() : "",
+    purpose: typeof parsed.purpose === "string" ? parsed.purpose.trim() : "",
+    confidence: parsed.confidence === "high" || parsed.confidence === "medium" ? parsed.confidence : "low",
+    note: typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : null,
+  };
+}
+
+function repairLooseJson(text: string) {
+  return text
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .replace(/,\s*([}\]])/g, "$1")
+    .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
+    .trim();
+}
+
+function salvagePrescriptionFields(text: string) {
+  return {
+    ...pickStringField(text, "drugName"),
+    ...pickStringField(text, "purpose"),
+    ...pickStringField(text, "confidence"),
+    ...pickStringField(text, "note"),
+  };
+}
+
+function pickStringField(text: string, key: string) {
+  const match = text.match(new RegExp(`["']?${key}["']?\\s*:\\s*["']([^"']*)`, "i"));
+  return match ? { [key]: match[1].trim() } : {};
 }

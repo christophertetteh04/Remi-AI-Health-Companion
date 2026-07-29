@@ -161,4 +161,61 @@ describe("Gemini malformed output fallbacks", () => {
     if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = previousGeminiKey;
   });
+
+  it("PrescriptionsService repairs loose Gemini JSON with unquoted fields and trailing commas", async () => {
+    const previousGeminiKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    const service = new PrescriptionsService();
+    (service as any).gemini = {
+      getGenerativeModel: jest.fn(() => ({
+        generateContent: jest.fn().mockResolvedValue({
+          response: {
+            text: () => `{
+              drugName: "Amlodipine",
+              purpose: "Used to help lower blood pressure.",
+              confidence: "high",
+              note: null,
+            }`,
+          },
+        }),
+      })),
+    };
+
+    const result = await service.extractDraft("user-1", "base64-image");
+
+    expect(result.drugName).toBe("Amlodipine");
+    expect(result.purpose).toBe("Used to help lower blood pressure.");
+    expect(result.confidence).toBe("high");
+    expect(result.knownDrug).toBe(true);
+
+    if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousGeminiKey;
+  });
+
+  it("PrescriptionsService salvages fields from truncated Gemini JSON", async () => {
+    const previousGeminiKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    const service = new PrescriptionsService();
+    (service as any).gemini = {
+      getGenerativeModel: jest.fn(() => ({
+        generateContent: jest.fn().mockResolvedValue({
+          response: {
+            text: () => `{
+              "drugName": "Metformin",
+              "purpose": "Used to help manage blood sugar levels`,
+          },
+        }),
+      })),
+    };
+
+    const result = await service.extractDraft("user-1", "base64-image");
+
+    expect(result.drugName).toBe("Metformin");
+    expect(result.purpose).toBe("Used to help manage blood sugar levels");
+    expect(result.confidence).toBe("low");
+    expect(result.knownDrug).toBe(true);
+
+    if (previousGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousGeminiKey;
+  });
 });

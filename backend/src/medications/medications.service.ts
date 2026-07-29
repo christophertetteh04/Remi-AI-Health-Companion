@@ -19,19 +19,31 @@ export class MedicationsService {
     return data;
   }
 
-  async create(userId: string, med: { name: string; dose: string; frequency: string; hour?: number; minute?: number; source?: string }) {
+  async create(userId: string, med: { name: string; dose: string; frequency: string; hour?: number; minute?: number; source?: string; conversationRef?: string }) {
+    const payload = {
+      user_id: userId,
+      name: med.name,
+      dose: med.dose,
+      frequency: med.frequency,
+      time_of_day: med.hour != null ? `${med.hour}:${med.minute ?? 0}` : null,
+      source: med.source || "manual",
+      conversation_ref: med.conversationRef || null,
+    };
     const { data, error } = await this.supabase.client
       .from("medications")
-      .insert({
-        user_id: userId,
-        name: med.name,
-        dose: med.dose,
-        frequency: med.frequency,
-        time_of_day: med.hour != null ? `${med.hour}:${med.minute ?? 0}` : null,
-        source: med.source || "manual",
-      })
+      .insert(payload)
       .select()
       .single();
+    if (isMissingColumnError(error, "conversation_ref")) {
+      const { conversation_ref: _conversationRef, ...legacyPayload } = payload;
+      const retry = await this.supabase.client
+        .from("medications")
+        .insert(legacyPayload)
+        .select()
+        .single();
+      if (retry.error) throw retry.error;
+      return retry.data;
+    }
     if (error) throw error;
     return data;
   }
@@ -65,4 +77,8 @@ export class MedicationsService {
       ? { conflict: true, message: `This matches a listed allergy: ${match}` }
       : { conflict: false, message: "No known conflict with your listed allergies." };
   }
+}
+
+function isMissingColumnError(error: any, column: string) {
+  return error?.code === "PGRST204" && typeof error?.message === "string" && error.message.includes(`'${column}' column`);
 }

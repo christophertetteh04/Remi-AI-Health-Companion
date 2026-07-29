@@ -23,6 +23,8 @@ create table if not exists symptom_episodes (
   outcome text, -- filled in after post-visit follow-up
   photo_path text, -- storage path in the 'symptom-photos' bucket, if any
   body_location text, -- confirmed location tag only, never a visual description
+  source text default 'direct_upload',
+  conversation_ref text,
   created_at timestamptz default now()
 );
 
@@ -70,7 +72,8 @@ create table if not exists medications (
   dose text,
   frequency text,
   time_of_day text,
-  source text default 'manual', -- 'manual' | 'ocr'
+  source text default 'manual', -- 'manual' | 'ocr' | 'chat'
+  conversation_ref text,
   prescription_image_url text,
   created_at timestamptz default now()
 );
@@ -98,6 +101,8 @@ create table if not exists lab_reports (
   test_type text,
   file_url text,
   extracted_summary text,
+  source text default 'direct_upload',
+  conversation_ref text,
   created_at timestamptz default now()
 );
 
@@ -131,6 +136,8 @@ create table if not exists sample_photos (
   photo_path text, -- storage path in the 'sample-photos' bucket (PRIVATE)
   description text, -- encrypted (see EncryptionService)
   danger_sign_detected boolean default false,
+  source text default 'direct_upload',
+  conversation_ref text,
   created_at timestamptz default now()
 );
 alter table sample_photos enable row level security;
@@ -206,11 +213,36 @@ create table if not exists imaging_records (
   scan_type text, -- e.g. 'CT', 'MRI', 'X-ray', 'Ultrasound' (user-labeled)
   photo_path text, -- storage path in the 'imaging-files' bucket (PRIVATE)
   explanation text, -- encrypted; NULL for kind='scan_image' since those are never interpreted
+  source text default 'direct_upload',
+  conversation_ref text,
   created_at timestamptz default now()
 );
 alter table imaging_records enable row level security;
 create policy "Users can manage own imaging records" on imaging_records
   for all using (user_id in (select id from users where auth_user_id = auth.uid()));
+
+create table if not exists medical_documents (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade,
+  explanation text, -- encrypted
+  photo_path text,
+  source text default 'direct_upload',
+  conversation_ref text,
+  created_at timestamptz default now()
+);
+alter table medical_documents enable row level security;
+create policy "Users can manage own medical documents" on medical_documents
+  for all using (user_id in (select id from users where auth_user_id = auth.uid()));
+
+alter table symptom_episodes add column if not exists source text default 'direct_upload';
+alter table symptom_episodes add column if not exists conversation_ref text;
+alter table medications add column if not exists conversation_ref text;
+alter table lab_reports add column if not exists source text default 'direct_upload';
+alter table lab_reports add column if not exists conversation_ref text;
+alter table sample_photos add column if not exists source text default 'direct_upload';
+alter table sample_photos add column if not exists conversation_ref text;
+alter table imaging_records add column if not exists source text default 'direct_upload';
+alter table imaging_records add column if not exists conversation_ref text;
 
 -- Bucket name: imaging-files (PRIVATE)
 

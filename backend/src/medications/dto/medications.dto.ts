@@ -26,8 +26,13 @@ export class CreateMedicationDto {
   minute?: number;
 
   @IsOptional()
-  @IsIn(["manual", "ocr"])
+  @IsIn(["manual", "ocr", "chat"])
   source?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  conversationRef?: string;
 }
 
 export class LogMedicationTakenDto {

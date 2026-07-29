@@ -8,16 +8,18 @@ export class AccountDataService {
   async deleteForUser(userId: string, authUserId: string, confirmation: "DELETE") {
     if (confirmation !== "DELETE") throw new BadRequestException("Deletion confirmation is required");
 
-    const [symptomPaths, samplePaths, imagingPaths] = await Promise.all([
+    const [symptomPaths, samplePaths, imagingPaths, medicalDocumentPaths] = await Promise.all([
       this.paths("symptom_episodes", userId, "photo_path"),
       this.paths("sample_photos", userId, "photo_path"),
       this.paths("imaging_records", userId, "photo_path"),
+      this.paths("medical_documents", userId, "photo_path"),
     ]);
 
     await Promise.all([
       this.removeStorage("symptom-photos", symptomPaths),
       this.removeStorage("sample-photos", samplePaths),
       this.removeStorage("imaging-files", imagingPaths),
+      this.removeStorage("medical-documents", medicalDocumentPaths),
     ]);
 
     const { error: userError } = await this.supabase.client

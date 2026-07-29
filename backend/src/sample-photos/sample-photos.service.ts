@@ -40,7 +40,7 @@ export class SamplePhotosService {
     private readonly encryption: EncryptionService,
   ) {}
 
-  async analyze(userId: string, imageBase64: string, sampleType: "urine" | "stool") {
+  async analyze(userId: string, imageBase64: string, sampleType: "urine" | "stool", metadata?: { source?: string; conversationRef?: string }) {
     const model = this.gemini.getGenerativeModel({
       model: GEMINI_MODEL,
       systemInstruction: SYSTEM_PROMPT,
@@ -79,6 +79,8 @@ export class SamplePhotosService {
         photo_path: fileName,
         description: this.encryption.encrypt(parsed.description),
         danger_sign_detected: parsed.dangerSignDetected,
+        source: metadata?.source || "direct_upload",
+        conversation_ref: metadata?.conversationRef || null,
       })
       .select()
       .single();

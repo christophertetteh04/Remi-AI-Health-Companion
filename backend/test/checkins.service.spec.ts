@@ -45,3 +45,47 @@ describe("CheckinsService regional pattern note", () => {
     expect(hasFever && hasChillsOrHeadache).toBe(false);
   });
 });
+
+describe("CheckinsService classified uploads", () => {
+  it("routes ambiguous scan-type uploads to scan_image store-only path", async () => {
+    const classifier = { classify: jest.fn().mockResolvedValue({ category: "scan_image", confidence: "high", reasoning: "Looks like a scan film or ambiguous scan upload." }) };
+    const imaging = { upload: jest.fn().mockResolvedValue({ id: "scan-1", kind: "scan_image", message: "stored" }) };
+    const service = new CheckinsService(classifier as any, undefined, imaging as any);
+
+    const result = await service.handleUpload("user-1", { imageBase64: "abc", mediaType: "image/jpeg", conversationRef: "turn-1" } as any);
+
+    expect(imaging.upload).toHaveBeenCalledWith("user-1", "abc", "scan_image", "Scan image", { source: "chat", conversationRef: "turn-1" });
+    expect(result.status).toBe("processed");
+    expect(result.classification).toEqual({ category: "scan_image", confidence: "high" });
+  });
+
+  it("routes prescription classifications to confirmation without saving records", async () => {
+    const classifier = { classify: jest.fn().mockResolvedValue({ category: "prescription", confidence: "high", reasoning: "Looks like a prescription pad." }) };
+    const labs = { interpretAndCompare: jest.fn() };
+    const imaging = { upload: jest.fn() };
+    const symptomMedia = { storePhoto: jest.fn() };
+    const samplePhotos = { analyze: jest.fn() };
+    const service = new CheckinsService(classifier as any, labs as any, imaging as any, symptomMedia as any, samplePhotos as any);
+
+    const result = await service.handleUpload("user-1", { imageBase64: "abc", mediaType: "image/jpeg", conversationRef: "turn-2" } as any);
+
+    expect(result.status).toBe("route_to_prescription_confirmation");
+    expect(result.message).toContain("before anything is saved");
+    expect(labs.interpretAndCompare).not.toHaveBeenCalled();
+    expect(imaging.upload).not.toHaveBeenCalled();
+    expect(symptomMedia.storePhoto).not.toHaveBeenCalled();
+    expect(samplePhotos.analyze).not.toHaveBeenCalled();
+  });
+
+  it("asks the user to confirm instead of crashing when classifier output is malformed", async () => {
+    const classifier = { classify: jest.fn().mockResolvedValue({ category: "unclear", confidence: "low", reasoning: "Classifier returned malformed JSON." }) };
+    const imaging = { upload: jest.fn() };
+    const service = new CheckinsService(classifier as any, undefined, imaging as any);
+
+    const result = await service.handleUpload("user-1", { imageBase64: "abc", mediaType: "image/jpeg", conversationRef: "turn-3" } as any);
+
+    expect(result.status).toBe("needs_confirmation");
+    expect(result.classification).toEqual({ category: "unclear", confidence: "low" });
+    expect(imaging.upload).not.toHaveBeenCalled();
+  });
+});

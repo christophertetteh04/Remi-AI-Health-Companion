@@ -1,6 +1,15 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { randomUUID } from "crypto";
+import { DocumentClassifierService, DocumentClassification } from "../document-classifier/document-classifier.service";
+import { EncryptionService } from "../common/encryption.service";
+import { SupabaseService } from "../common/supabase.service";
+import { ImagingService } from "../imaging/imaging.service";
+import { LabsService } from "../labs/labs.service";
+import { SamplePhotosService } from "../sample-photos/sample-photos.service";
+import { SymptomMediaService } from "../symptom-media/symptom-media.service";
 import { HistoryItem } from "./dto/send-message.dto";
+import { UploadCheckinDto } from "./dto/upload-checkin.dto";
 
 // Basic keyword net as a fast first pass ahead of the model.
 // This is NOT a substitute for a properly reviewed crisis-detection
@@ -74,6 +83,23 @@ const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-
 export class CheckinsService {
   private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+  constructor(
+    @Optional()
+    private readonly classifier?: DocumentClassifierService,
+    @Optional()
+    private readonly labs?: LabsService,
+    @Optional()
+    private readonly imaging?: ImagingService,
+    @Optional()
+    private readonly symptomMedia?: SymptomMediaService,
+    @Optional()
+    private readonly samplePhotos?: SamplePhotosService,
+    @Optional()
+    private readonly supabase?: SupabaseService,
+    @Optional()
+    private readonly encryption?: EncryptionService,
+  ) {}
+
   async handleMessage(
     message: string,
     history: HistoryItem[],
@@ -145,6 +171,88 @@ export class CheckinsService {
     }
 
     throw lastError;
+  }
+
+  async handleUpload(userId: string, dto: UploadCheckinDto, analyticsEnabled = true) {
+    const mediaType = dto.mediaType || "image/jpeg";
+    const conversationRef = dto.conversationRef || new Date().toISOString();
+    const classification = dto.confirmedCategory
+      ? { category: dto.confirmedCategory as DocumentClassification["category"], confidence: "high" as const, reasoning: "User confirmed category." }
+      : await this.classifier!.classify(dto.imageBase64, mediaType);
+
+    if (classification.confidence === "low" || classification.category === "unclear") {
+      return { status: "needs_confirmation", classification: publicClassification(classification), message: "I am not fully sure what this is. Please choose the upload type so I route it safely." };
+    }
+
+    const metadata = { source: "chat", conversationRef };
+    if (classification.category === "lab_report") {
+      const result = await this.labs!.interpretAndCompare(userId, dto.imageBase64, mediaType, analyticsEnabled, metadata);
+      return { status: "processed", classification: publicClassification(classification), result, message: `This looks like a lab report. ${result.explanation}` };
+    }
+    if (classification.category === "scan_report") {
+      const result = await this.imaging!.upload(userId, dto.imageBase64, "report_text", dto.scanType || "Imaging report", metadata);
+      return { status: "processed", classification: publicClassification(classification), result, message: `This looks like an imaging report. ${result.explanation}` };
+    }
+    if (classification.category === "scan_image") {
+      const result = await this.imaging!.upload(userId, dto.imageBase64, "scan_image", dto.scanType || "Scan image", metadata);
+      return { status: "processed", classification: publicClassification(classification), result, message: "Saved to your scan history. Remi does not interpret raw scan images; your doctor can review the image directly." };
+    }
+    if (classification.category === "symptom_photo") {
+      if (!dto.bodyLocation) return { status: "needs_body_location", classification: publicClassification(classification), message: "This looks like a symptom photo. Please choose where on the body it is from so I can save it safely." };
+      const result = await this.symptomMedia!.storePhoto(userId, dto.imageBase64, dto.bodyLocation, metadata);
+      return { status: "processed", classification: publicClassification(classification), result, message: `Saved the symptom photo with location: ${dto.bodyLocation}.` };
+    }
+    if (classification.category === "sample_photo") {
+      if (!dto.sampleType) return { status: "needs_sample_type", classification: publicClassification(classification), message: "This looks like a sample photo. Please confirm whether it is urine or stool before I process it." };
+      const result = await this.samplePhotos!.analyze(userId, dto.imageBase64, dto.sampleType, metadata);
+      return { status: "processed", classification: publicClassification(classification), result, message: result.urgentMessage ? `${result.description} ${result.urgentMessage}` : result.description };
+    }
+    if (classification.category === "prescription") {
+      return { status: "route_to_prescription_confirmation", classification: publicClassification(classification), message: "This looks like a prescription. Let's go through the details together before anything is saved." };
+    }
+    if (classification.category === "general_medical_document") {
+      const result = await this.storeGeneralMedicalDocument(userId, dto.imageBase64, mediaType, metadata);
+      return { status: "processed", classification: publicClassification(classification), result, message: `This looks like a medical document. ${result.explanation}` };
+    }
+
+    return { status: "needs_confirmation", classification: publicClassification(classification), message: "Please choose the upload type so I route it safely." };
+  }
+
+  private async storeGeneralMedicalDocument(userId: string, imageBase64: string, mediaType: string, metadata: { source: string; conversationRef: string }) {
+    const explanation = await this.explainGeneralMedicalDocument(imageBase64, mediaType);
+    const fileName = `${userId}/${randomUUID()}.jpg`;
+    await this.supabase!.client.storage
+      .from("medical-documents")
+      .upload(fileName, Buffer.from(imageBase64, "base64"), { contentType: mediaType });
+    const { data } = await this.supabase!.client
+      .from("medical_documents")
+      .insert({
+        user_id: userId,
+        explanation: this.encryption!.encrypt(explanation),
+        photo_path: fileName,
+        source: metadata.source,
+        conversation_ref: metadata.conversationRef,
+      })
+      .select()
+      .single();
+    return { id: data?.id, explanation };
+  }
+
+  private async explainGeneralMedicalDocument(imageBase64: string, mediaType: string) {
+    if (!process.env.GEMINI_API_KEY) return "Saved this document for your records. Please review it with your doctor.";
+    const model = this.gemini.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+      systemInstruction: "Explain general medical documents in plain language. Stay descriptive and non-diagnostic. Do not infer, diagnose, or recommend treatment changes. End by recommending the user discuss it with their doctor. Return strict JSON: {\"explanation\": string}",
+      generationConfig: { maxOutputTokens: 600, responseMimeType: "application/json" },
+    });
+    const response = await model.generateContent({
+      contents: [{ role: "user", parts: [{ inlineData: { mimeType: mediaType, data: imageBase64 } }, { text: "Explain this general medical document." }] }],
+    });
+    try {
+      return JSON.parse(response.response.text() || "{}").explanation || "Saved this document for your records. Please review it with your doctor.";
+    } catch {
+      return "Saved this document for your records. Please review it with your doctor.";
+    }
   }
 }
 
@@ -275,6 +383,10 @@ function normalizeCheckinResponse(value: any): { reply: string; urgency: "normal
   const urgency = value?.urgency === "monitor" || value?.urgency === "urgent" ? value.urgency : "normal";
   if (!reply) throw new Error("Model JSON did not include a reply");
   return { reply, urgency };
+}
+
+function publicClassification(classification: DocumentClassification) {
+  return { category: classification.category, confidence: classification.confidence };
 }
 
 function pick<T>(items: T[], seed: number) {

@@ -3,18 +3,36 @@ import { Alert, Animated, Easing, Image, Modal, View, Text, TextInput, Pressable
 import * as FileSystem from "expo-file-system/legacy";
 import { colors, fonts, urgencyColor } from "../theme/tokens";
 import { Camera, FileText, FlaskConical, HeartPulse, Mic, ScanLine, Send, ShieldCheck, Sparkles, Square, Trash2, Venus, X } from "lucide-react-native";
-import { getFreshAccessToken, type CheckinTopic, sendCheckinMessage } from "../services/api";
+import { type CheckinTopic, type DocumentUploadCategory, sendCheckinMessage, uploadCheckinImage } from "../services/api";
 import { startRecording, stopRecordingAndTranscribe, cancelRecording, cancelTranscription } from "../services/voiceRecording";
 import * as ImagePicker from "expo-image-picker";
 import { addRecentActivity } from "../services/recentActivity";
 import { clearChatMemory, loadChatMemory, saveChatMemory } from "../services/chatMemory";
 import { buildHealthMemoryContext } from "../services/healthMemory";
-import { analyticsRequestHeader, trackEvent } from "../services/posthog";
+import { trackEvent } from "../services/posthog";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 const BODY_LOCATIONS = ["Head", "Chest", "Abdomen", "Arm", "Leg", "Back", "Skin", "Other"];
+const DOCUMENT_CHOICES: { category: DocumentUploadCategory; label: string }[] = [
+  { category: "lab_report", label: "Lab report" },
+  { category: "prescription", label: "Prescription" },
+  { category: "scan_report", label: "Scan report" },
+  { category: "scan_image", label: "Scan image" },
+  { category: "symptom_photo", label: "Symptom photo" },
+  { category: "sample_photo", label: "Sample photo" },
+  { category: "general_medical_document", label: "Medical document" },
+];
 
 type Msg = { from: "user" | "bot"; text: string; imageUri?: string; urgency?: "normal" | "monitor" | "urgent"; createdAt: string };
+type PendingUpload = {
+  uri: string;
+  base64: string;
+  mediaType: string;
+  conversationRef: string;
+};
+type PendingUploadAction = {
+  mode: "document_type" | "sample_type";
+  upload: PendingUpload;
+};
 const sexualHealthPrompt =
   "We can talk about STI symptoms, testing, contraception, periods, pregnancy concerns, or reproductive health. I won't diagnose you. What are you noticing, and when did it start?";
 
@@ -47,7 +65,8 @@ export default function ChatScreen({ navigation }: any) {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [checkinTopic, setCheckinTopic] = useState<CheckinTopic>("general");
-  const [pendingPhotoUri, setPendingPhotoUri] = useState<string | null>(null);
+  const [pendingPhotoUpload, setPendingPhotoUpload] = useState<PendingUpload | null>(null);
+  const [pendingUploadAction, setPendingUploadAction] = useState<PendingUploadAction | null>(null);
   const [savingPhoto, setSavingPhoto] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -124,8 +143,19 @@ export default function ChatScreen({ navigation }: any) {
     clearChatMemory();
   };
 
+  const appendMessages = async (items: Msg[]) => {
+    let updated: Msg[] = [];
+    setMessages((prev) => {
+      updated = [...prev, ...items];
+      return updated;
+    });
+    await saveChatMemory(updated);
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    return updated;
+  };
+
   const chooseSymptomPhoto = () => {
-    Alert.alert("Add symptom photo", "Choose how you want to add a photo.", [
+    Alert.alert("Add image", "Choose how you want to add a photo or document.", [
       { text: "Cancel", style: "cancel" },
       { text: "Take photo", onPress: () => pickSymptomPhoto("camera") },
       { text: "Upload image", onPress: () => pickSymptomPhoto("library") },
@@ -156,40 +186,114 @@ export default function ChatScreen({ navigation }: any) {
       setMessages((prev) => [...prev, makeMessage({ from: "bot", text: "That image is too large. Please try a closer, smaller photo." })]);
       return;
     }
-    setPendingPhotoUri(uri);
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+    const upload = {
+      uri,
+      base64,
+      mediaType: result.assets[0]?.mimeType || "image/jpeg",
+      conversationRef: new Date().toISOString(),
+    };
+    await appendMessages([
+      makeMessage({ from: "user", text: "Image attached for Remi to review.", imageUri: uri }),
+      makeMessage({ from: "bot", text: "Looking at this..." }),
+    ]);
+    await processCheckinUpload(upload);
   };
 
   const uploadPendingPhoto = async (locationLabel: string) => {
-    if (!pendingPhotoUri || savingPhoto) return;
+    if (!pendingPhotoUpload || savingPhoto) return;
     setSavingPhoto(true);
     try {
-      const token = await getFreshAccessToken();
-      if (!token) throw new Error("Please sign in again before uploading photos.");
-      const formData = new FormData();
-      formData.append("bodyLocation", locationLabel);
-      formData.append("image", { uri: pendingPhotoUri, name: "symptom-photo.jpg", type: "image/jpeg" } as any);
-      const res = await fetch(`${API_BASE_URL}/symptom-media/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, ...(await analyticsRequestHeader()) },
-        body: formData,
+      const upload = pendingPhotoUpload;
+      setPendingPhotoUpload(null);
+      const data = await uploadCheckinImage({
+        imageBase64: upload.base64,
+        mediaType: upload.mediaType,
+        conversationRef: upload.conversationRef,
+        confirmedCategory: "symptom_photo",
+        bodyLocation: locationLabel,
       });
-      if (!res.ok) throw new Error(`Photo upload failed (${res.status})`);
       await addRecentActivity({
         type: "chat",
         title: "Symptom photo added",
         detail: `Location: ${locationLabel}`,
         route: "Chat",
       });
-      const updated = [...messages, makeMessage({ from: "user", text: `Photo attached - location: ${locationLabel}`, imageUri: pendingPhotoUri })];
-      setMessages(updated);
-      await saveChatMemory(updated);
-      setPendingPhotoUri(null);
+      await appendMessages([makeMessage({ from: "bot", text: data.message || `Saved this symptom photo with location: ${locationLabel}.` })]);
     } catch (error: any) {
       console.log("Symptom photo upload error:", error?.message || String(error));
       setMessages((prev) => [...prev, makeMessage({ from: "bot", text: error?.message || "Couldn't save that photo just now. Please try again with a smaller image." })]);
     } finally {
       setSavingPhoto(false);
     }
+  };
+
+  const processCheckinUpload = async (
+    upload: PendingUpload,
+    extra?: { confirmedCategory?: DocumentUploadCategory; sampleType?: "urine" | "stool"; bodyLocation?: string },
+  ) => {
+    setLoading(true);
+    setPendingUploadAction(null);
+    try {
+      const data = await uploadCheckinImage({
+        imageBase64: upload.base64,
+        mediaType: upload.mediaType,
+        conversationRef: upload.conversationRef,
+        confirmedCategory: extra?.confirmedCategory,
+        sampleType: extra?.sampleType,
+        bodyLocation: extra?.bodyLocation,
+      });
+      const category = data.classification?.category;
+      if (data.status === "needs_confirmation") {
+        setPendingUploadAction({ mode: "document_type", upload });
+        await appendMessages([makeMessage({ from: "bot", text: data.message || "I’m not fully sure what type of item this is. Which one should I use?" })]);
+        return;
+      }
+      if (data.status === "needs_body_location") {
+        setPendingPhotoUpload(upload);
+        await appendMessages([makeMessage({ from: "bot", text: data.message || "This looks like a symptom photo. Where on the body should I label it?" })]);
+        return;
+      }
+      if (data.status === "needs_sample_type") {
+        setPendingUploadAction({ mode: "sample_type", upload });
+        await appendMessages([makeMessage({ from: "bot", text: data.message || "Is this a urine sample or a stool sample?" })]);
+        return;
+      }
+      if (data.status === "route_to_prescription_confirmation") {
+        await appendMessages([makeMessage({ from: "bot", text: data.message || "This looks like a prescription. Let's go through the details together before anything is saved." })]);
+        navigation.navigate("PrescriptionScan", {
+          imageUri: upload.uri,
+          imageBase64: upload.base64,
+          recordSource: "chat",
+          conversationRef: upload.conversationRef,
+        });
+        return;
+      }
+      await addRecentActivity({
+        type: category === "lab_report" ? "lab" : "chat",
+        title: category ? `${categoryLabel(category)} uploaded` : "Chat upload processed",
+        detail: "Saved from your Remi check-in",
+        route: category === "lab_report" ? "LabUpload" : "Chat",
+      });
+      await appendMessages([makeMessage({ from: "bot", text: resultMessage(data) })]);
+    } catch (error: any) {
+      console.log("Check-in upload error:", error?.message || String(error));
+      await appendMessages([makeMessage({ from: "bot", text: error?.message || "I couldn't process that image just now. Please try again with a clearer photo." })]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmDocumentType = (category: DocumentUploadCategory) => {
+    const action = pendingUploadAction;
+    if (!action) return;
+    processCheckinUpload(action.upload, { confirmedCategory: category });
+  };
+
+  const confirmSampleType = (sampleType: "urine" | "stool") => {
+    const action = pendingUploadAction;
+    if (!action) return;
+    processCheckinUpload(action.upload, { confirmedCategory: "sample_photo", sampleType });
   };
 
   const toggleRecording = async () => {
@@ -264,6 +368,25 @@ export default function ChatScreen({ navigation }: any) {
         {messages.map((m, i) => (
           <MessageBubble key={`${m.createdAt}-${i}`} message={m} />
         ))}
+        {pendingUploadAction?.mode === "document_type" && (
+          <QuickReplyPanel title="What kind of item is this?">
+            {DOCUMENT_CHOICES.map((choice) => (
+              <Pressable key={choice.category} onPress={() => confirmDocumentType(choice.category)} style={styles.quickReplyButton}>
+                <Text style={styles.quickReplyText}>{choice.label}</Text>
+              </Pressable>
+            ))}
+          </QuickReplyPanel>
+        )}
+        {pendingUploadAction?.mode === "sample_type" && (
+          <QuickReplyPanel title="Which sample is this?">
+            <Pressable onPress={() => confirmSampleType("urine")} style={styles.quickReplyButton}>
+              <Text style={styles.quickReplyText}>Urine</Text>
+            </Pressable>
+            <Pressable onPress={() => confirmSampleType("stool")} style={styles.quickReplyButton}>
+              <Text style={styles.quickReplyText}>Stool</Text>
+            </Pressable>
+          </QuickReplyPanel>
+        )}
         {loading && <TypingIndicator />}
       </ScrollView>
 
@@ -328,7 +451,7 @@ export default function ChatScreen({ navigation }: any) {
         </View>
       </View>
 
-      <Modal visible={!!pendingPhotoUri} transparent animationType="fade" onRequestClose={() => setPendingPhotoUri(null)}>
+      <Modal visible={!!pendingPhotoUpload} transparent animationType="fade" onRequestClose={() => setPendingPhotoUpload(null)}>
         <View style={styles.locationBackdrop}>
           <View style={styles.locationSheet}>
             <Text style={styles.locationTitle}>Where is this photo from?</Text>
@@ -340,13 +463,46 @@ export default function ChatScreen({ navigation }: any) {
                 </Pressable>
               ))}
             </View>
-            <Pressable onPress={() => setPendingPhotoUri(null)} disabled={savingPhoto} style={styles.locationCancel}>
+            <Pressable onPress={() => setPendingPhotoUpload(null)} disabled={savingPhoto} style={styles.locationCancel}>
               <Text style={styles.locationCancelText}>{savingPhoto ? "Saving..." : "Cancel"}</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
     </KeyboardAvoidingView>
+  );
+}
+
+function categoryLabel(category: DocumentUploadCategory) {
+  const labels: Record<DocumentUploadCategory, string> = {
+    lab_report: "Lab report",
+    prescription: "Prescription",
+    scan_report: "Scan report",
+    scan_image: "Scan image",
+    symptom_photo: "Symptom photo",
+    sample_photo: "Sample photo",
+    general_medical_document: "Medical document",
+    unclear: "Upload",
+  };
+  return labels[category];
+}
+
+function resultMessage(data: any) {
+  const category = data?.classification?.category as DocumentUploadCategory | undefined;
+  const label = category ? categoryLabel(category).toLowerCase() : "upload";
+  const result = data?.result || {};
+  if (result.explanation) return `This looks like a ${label}. ${result.explanation}`;
+  if (result.message) return result.message;
+  if (data?.message) return data.message;
+  return `Saved this ${label} from your check-in.`;
+}
+
+function QuickReplyPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.quickReplyPanel}>
+      <Text style={styles.quickReplyTitle}>{title}</Text>
+      <View style={styles.quickReplyGrid}>{children}</View>
+    </View>
   );
 }
 
@@ -529,6 +685,11 @@ const styles = StyleSheet.create({
   timestampUser: { alignSelf: "flex-end", marginRight: 4 },
   timestampBot: { alignSelf: "flex-start", marginLeft: 4 },
   urgencyBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.peachDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 14, marginLeft: 4 },
+  quickReplyPanel: { alignSelf: "flex-start", maxWidth: "92%", backgroundColor: colors.surface, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 12, marginLeft: 36, marginTop: 4, marginBottom: 12 },
+  quickReplyTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 9 },
+  quickReplyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  quickReplyButton: { backgroundColor: colors.primaryDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  quickReplyText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
   composer: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 18 : 12, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   recordingBanner: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingBottom: 8 },
   recordingDotWrap: { width: 18, height: 18, alignItems: "center", justifyContent: "center", marginRight: 6 },

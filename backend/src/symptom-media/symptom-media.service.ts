@@ -10,11 +10,11 @@ export class SymptomMediaService {
     private readonly encryption: EncryptionService,
   ) {}
 
-  async storePhoto(userId: string, imageBase64: string, bodyLocation: string) {
-    return this.storePhotoBuffer(userId, Buffer.from(imageBase64, "base64"), bodyLocation);
+  async storePhoto(userId: string, imageBase64: string, bodyLocation: string, metadata?: { source?: string; conversationRef?: string }) {
+    return this.storePhotoBuffer(userId, Buffer.from(imageBase64, "base64"), bodyLocation, metadata);
   }
 
-  async storePhotoBuffer(userId: string, buffer: Buffer, bodyLocation: string) {
+  async storePhotoBuffer(userId: string, buffer: Buffer, bodyLocation: string, metadata?: { source?: string; conversationRef?: string }) {
     const fileName = `${userId}/${randomUUID()}.jpg`;
     if (buffer.length > 6_000_000) throw new Error("Image is too large");
     await ensureBucket(this.supabase.client, "symptom-photos");
@@ -35,6 +35,8 @@ export class SymptomMediaService {
         description: this.encryption.encrypt(`Photo attached — location: ${bodyLocation}`),
         photo_path: fileName,
         body_location: bodyLocation,
+        source: metadata?.source || "direct_upload",
+        conversation_ref: metadata?.conversationRef || null,
       })
       .select()
       .single();

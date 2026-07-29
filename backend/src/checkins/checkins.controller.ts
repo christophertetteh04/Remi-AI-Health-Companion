@@ -1,10 +1,13 @@
-import { Body, Controller, Delete, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Post, UseGuards, UseInterceptors } from "@nestjs/common";
 import { AuthGuard } from "../auth/auth.guard";
+import { CurrentAnalyticsEnabled } from "../auth/current-analytics-enabled.decorator";
 import { CurrentUserId } from "../auth/current-user.decorator";
+import { AccessLogInterceptor } from "../common/access-log.interceptor";
 import { CheckinsMemoryService } from "./checkins-memory.service";
 import { CheckinsService } from "./checkins.service";
 import { SaveChatMemoryDto, SaveRecentActivitiesDto } from "./dto/chat-memory.dto";
 import { SendMessageDto } from "./dto/send-message.dto";
+import { UploadCheckinDto } from "./dto/upload-checkin.dto";
 
 @Controller("checkins")
 @UseGuards(AuthGuard)
@@ -17,6 +20,16 @@ export class CheckinsController {
   @Post("message")
   async sendMessage(@Body() dto: SendMessageDto) {
     return this.checkinsService.handleMessage(dto.message, dto.history, dto.topic, dto.memoryContext);
+  }
+
+  @Post("upload")
+  @UseInterceptors(AccessLogInterceptor)
+  async upload(
+    @CurrentUserId() userId: string,
+    @CurrentAnalyticsEnabled() analyticsEnabled: boolean,
+    @Body() dto: UploadCheckinDto,
+  ) {
+    return this.checkinsService.handleUpload(userId, dto, analyticsEnabled);
   }
 
   @Get("memory")
