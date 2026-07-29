@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
-import { colors, radius, fonts } from "../theme/tokens";
+import { Alert, KeyboardAvoidingView, Modal, Platform, TextInput, View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { colors, fonts } from "../theme/tokens";
 import { Card, PrimaryButton } from "../components/UI";
-import { Pill, Check, AlertTriangle, Camera, ImageUp, Bell, ShieldCheck, Plus, Clock3 } from "lucide-react-native";
-import { getMedications, markMedicationTaken } from "../services/api";
+import { Pill, Check, Bell, ShieldCheck, Plus, Clock3, X, Save } from "lucide-react-native";
+import { getMedications, markMedicationTaken, updateMedication } from "../services/api";
 import { addRecentActivity } from "../services/recentActivity";
 import { navigationRef } from "../navigation/navigationRef";
+import { scheduleMedicationReminder } from "../services/notifications";
 
 type Medication = {
   id: string;
   name: string;
   dose: string;
+  frequency: string;
   time: string;
+  time_of_day?: string | null;
   note: string;
   takenToday: boolean;
   source?: string;
@@ -22,25 +26,39 @@ type Medication = {
 export default function MedsScreen({ navigation }: any) {
   const [meds, setMeds] = useState<Medication[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingMed, setEditingMed] = useState<Medication | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", dose: "", frequency: "", time: "08:00" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
-  useEffect(() => {
+  const loadMeds = React.useCallback(() => {
+    setLoading(true);
     getMedications()
       .then(setMeds)
       .catch(() => setMeds([])) // falls back to empty state if backend/API keys aren't configured yet
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    loadMeds();
+  }, [loadMeds]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadMeds();
+    }, [loadMeds]),
+  );
+
   const markTaken = async (id: string) => {
+    const med = meds.find((m) => m.id === id);
     setMeds((prev) => prev.map((m) => (m.id === id ? { ...m, takenToday: true } : m)));
+    await addRecentActivity({
+      type: "medication",
+      title: "Medication marked taken",
+      detail: med ? `${med.name} ${med.dose}`.trim() : "Dose marked complete",
+      route: "Meds",
+    });
     try {
       await markMedicationTaken(id, new Date().toISOString());
-      const med = meds.find((m) => m.id === id);
-      await addRecentActivity({
-        type: "medication",
-        title: "Medication marked taken",
-        detail: med ? `${med.name} ${med.dose}`.trim() : "Dose marked complete",
-        route: "Meds",
-      });
     } catch {
       // optimistic update stands even if the log call fails; a retry/sync queue is a V2 item
     }
@@ -57,9 +75,53 @@ export default function MedsScreen({ navigation }: any) {
     navigation.navigate("PrescriptionScan", params);
   };
 
+  const openEdit = (med: Medication) => {
+    setEditingMed(med);
+    setEditDraft({
+      name: med.name || "",
+      dose: med.dose || "",
+      frequency: med.frequency || "",
+      time: normalizeMedTime(med),
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingMed || savingEdit) return;
+    if (!editDraft.name.trim() || !editDraft.dose.trim() || !editDraft.frequency.trim()) {
+      Alert.alert("Finish medication", "Please add the medication name, dose, and frequency.");
+      return;
+    }
+    const [hourRaw, minuteRaw] = editDraft.time.split(":");
+    const hour = Number(hourRaw);
+    const minute = Number(minuteRaw);
+    setSavingEdit(true);
+    try {
+      const saved = await updateMedication(editingMed.id, {
+        name: editDraft.name.trim(),
+        dose: editDraft.dose.trim(),
+        frequency: editDraft.frequency.trim(),
+        hour: Number.isFinite(hour) ? hour : 8,
+        minute: Number.isFinite(minute) ? minute : 0,
+      });
+      await scheduleMedicationReminder(editingMed.id, Number.isFinite(hour) ? hour : 8, Number.isFinite(minute) ? minute : 0);
+      setMeds((prev) => prev.map((med) => (med.id === editingMed.id ? { ...med, ...saved, time: saved.time || saved.time_of_day || editDraft.time } : med)));
+      await addRecentActivity({
+        type: "medication",
+        title: "Medication updated",
+        detail: `${editDraft.name.trim()} ${editDraft.dose.trim()}`.trim(),
+        route: "Meds",
+      });
+      setEditingMed(null);
+    } catch {
+      Alert.alert("Couldn't save", "Please check your connection and try again.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 148 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 34 }}>
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>MEDICATIONS</Text>
@@ -109,7 +171,8 @@ export default function MedsScreen({ navigation }: any) {
           )}
 
           {meds.map((m) => (
-            <Card key={m.id} style={styles.medCard}>
+            <Pressable key={m.id} onPress={() => openEdit(m)} style={({ pressed }) => [pressed && styles.cardPressed]}>
+              <Card style={styles.medCard}>
               <View style={styles.medHeader}>
                 <View style={styles.pillIcon}><Pill size={17} color={colors.primary} /></View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
@@ -119,17 +182,18 @@ export default function MedsScreen({ navigation }: any) {
                 </View>
                 <View style={styles.timePill}>
                   <Clock3 size={12} color={colors.inkSoft} />
-                  <Text style={styles.medTime}>{m.time}</Text>
+                  <Text style={styles.medTime}>{normalizeMedTime(m)}</Text>
                 </View>
               </View>
               {m.note ? <Text style={styles.medNote}>{m.note}</Text> : null}
-              <Pressable onPress={() => markTaken(m.id)} style={[styles.takenBtn, m.takenToday && styles.takenBtnDone]}>
+              <Pressable onPress={(event) => { event.stopPropagation(); markTaken(m.id); }} style={[styles.takenBtn, m.takenToday && styles.takenBtnDone]}>
                 <Check size={12} color={m.takenToday ? colors.mint : colors.inkSoft} />
                 <Text style={[styles.takenText, m.takenToday && { color: colors.mint }]}>
                   {m.takenToday ? "Taken today" : "Mark as taken"}
                 </Text>
               </Pressable>
-            </Card>
+              </Card>
+            </Pressable>
           ))}
 
           <View style={styles.allergyNote}>
@@ -142,22 +206,46 @@ export default function MedsScreen({ navigation }: any) {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomBar}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.uploadTitle}>New prescription</Text>
-          <Text style={styles.uploadText}>Camera or image upload</Text>
-        </View>
-        <View style={styles.uploadActions}>
-          <Pressable onPress={() => openPrescriptionScan("camera")} style={styles.uploadButton}>
-            <Camera size={17} color={colors.primary} />
-            <Text style={styles.uploadButtonText}>Camera</Text>
-          </Pressable>
-          <Pressable onPress={() => openPrescriptionScan("library")} style={styles.uploadButton}>
-            <ImageUp size={17} color={colors.primary} />
-            <Text style={styles.uploadButtonText}>Upload</Text>
-          </Pressable>
-        </View>
-      </View>
+      <Modal visible={!!editingMed} transparent animationType="fade" onRequestClose={() => setEditingMed(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalBackdrop}>
+          <View style={styles.editSheet}>
+            <View style={styles.editHeader}>
+              <View>
+                <Text style={styles.editTitle}>Edit medication</Text>
+                <Text style={styles.editSub}>Update the reminder details you reviewed.</Text>
+              </View>
+              <Pressable onPress={() => setEditingMed(null)} style={styles.closeButton}>
+                <X size={18} color={colors.inkSoft} />
+              </Pressable>
+            </View>
+            <MedInput label="Medication name" value={editDraft.name} onChangeText={(name) => setEditDraft((prev) => ({ ...prev, name }))} />
+            <MedInput label="Dose" value={editDraft.dose} onChangeText={(dose) => setEditDraft((prev) => ({ ...prev, dose }))} />
+            <MedInput label="Frequency" value={editDraft.frequency} onChangeText={(frequency) => setEditDraft((prev) => ({ ...prev, frequency }))} />
+            <MedInput label="Reminder time" value={editDraft.time} onChangeText={(time) => setEditDraft((prev) => ({ ...prev, time }))} />
+            <Pressable onPress={saveEdit} disabled={savingEdit} style={styles.saveButton}>
+              <Save size={15} color={colors.bg} />
+              <Text style={styles.saveButtonText}>{savingEdit ? "Saving..." : "Save changes"}</Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+function normalizeMedTime(med: Medication) {
+  const raw = med.time || med.time_of_day || "08:00";
+  const [hourRaw, minuteRaw = "0"] = raw.split(":");
+  const hour = Math.max(0, Math.min(23, Number(hourRaw) || 8));
+  const minute = Math.max(0, Math.min(59, Number(minuteRaw) || 0));
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function MedInput({ label, value, onChangeText }: { label: string; value: string; onChangeText: (value: string) => void }) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TextInput value={value} onChangeText={onChangeText} placeholderTextColor={colors.inkFaint} style={styles.input} />
     </View>
   );
 }
@@ -211,35 +299,12 @@ const styles = StyleSheet.create({
   summaryDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.hairline },
   loadingCard: { padding: 16 },
   loadingText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 13 },
-  bottomBar: {
-    position: "absolute",
-    left: 18,
-    right: 18,
-    bottom: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairline,
-    padding: 14,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
-  },
+  cardPressed: { opacity: 0.78 },
   emptyState: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, alignItems: "center", paddingHorizontal: 22, paddingVertical: 28 },
   emptyIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginBottom: 14 },
   emptyTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 16 },
   emptyText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, textAlign: "center", marginTop: 7 },
   emptyButton: { alignSelf: "stretch", marginTop: 16 },
-  uploadTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 14 },
-  uploadText: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 3 },
-  uploadActions: { flexDirection: "row", gap: 8 },
-  uploadButton: { width: 74, height: 54, borderRadius: 10, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
-  uploadButtonText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 11, marginTop: 4 },
   medCard: { padding: 16 },
   medHeader: { flexDirection: "row", alignItems: "center" },
   pillIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
@@ -254,4 +319,15 @@ const styles = StyleSheet.create({
   takenText: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12, marginLeft: 7 },
   allergyNote: { flexDirection: "row", alignItems: "flex-start", backgroundColor: colors.mintDim, borderRadius: 12, padding: 16, marginTop: 2 },
   allergyText: { color: colors.mint, fontFamily: fonts.body, fontSize: 12, marginLeft: 10, flex: 1, lineHeight: 17 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", justifyContent: "flex-end", padding: 16 },
+  editSheet: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, shadowColor: "#0F172A", shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
+  editHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 },
+  editTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 18 },
+  editSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginTop: 4 },
+  closeButton: { width: 38, height: 38, borderRadius: 13, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
+  inputGroup: { marginBottom: 11 },
+  inputLabel: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 11.5, marginBottom: 7 },
+  input: { minHeight: 50, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, backgroundColor: colors.bg, color: colors.ink, fontFamily: fonts.body, fontSize: 14, paddingHorizontal: 13, paddingVertical: 11 },
+  saveButton: { minHeight: 50, borderRadius: 14, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
+  saveButtonText: { color: colors.bg, fontFamily: fonts.bodySemiBold, fontSize: 13 },
 });

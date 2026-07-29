@@ -81,3 +81,30 @@ describe("MedicationsService.create", () => {
     expect(insert.mock.calls[1][0]).not.toHaveProperty("conversation_ref");
   });
 });
+
+describe("MedicationsService.update", () => {
+  it("updates only the current user's medication", async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({ data: { id: "med-1", name: "Metformin" }, error: null });
+    const secondEq = jest.fn(() => ({ select: () => ({ maybeSingle }) }));
+    const firstEq = jest.fn(() => ({ eq: secondEq }));
+    const update = jest.fn(() => ({ eq: firstEq }));
+    const service = new MedicationsService({ client: { from: jest.fn(() => ({ update })) } } as any);
+
+    const result = await service.update("user-1", "med-1", { name: "Metformin", dose: "500 mg", frequency: "Daily", hour: 8, minute: 30 });
+
+    expect(result).toEqual({ id: "med-1", name: "Metformin" });
+    expect(update).toHaveBeenCalledWith({ name: "Metformin", dose: "500 mg", frequency: "Daily", time_of_day: "8:30" });
+    expect(firstEq).toHaveBeenCalledWith("id", "med-1");
+    expect(secondEq).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("rejects editing another user's medication", async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+    const secondEq = jest.fn(() => ({ select: () => ({ maybeSingle }) }));
+    const firstEq = jest.fn(() => ({ eq: secondEq }));
+    const update = jest.fn(() => ({ eq: firstEq }));
+    const service = new MedicationsService({ client: { from: jest.fn(() => ({ update })) } } as any);
+
+    await expect(service.update("user-1", "med-owned-by-other", { name: "Other" })).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

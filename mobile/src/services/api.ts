@@ -208,6 +208,19 @@ export async function markMedicationTaken(medicationId: string, takenAt: string)
   return res.json();
 }
 
+export async function updateMedication(
+  medicationId: string,
+  body: { name: string; dose: string; frequency: string; hour?: number; minute?: number },
+) {
+  const res = await fetch(`${API_BASE_URL}/medications/${medicationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Medication update failed: ${res.status}`);
+  return res.json();
+}
+
 export async function submitVitalsReading(reading: { systolic: number; diastolic: number; glucose?: number }) {
   const res = await fetch(`${API_BASE_URL}/vitals`, {
     method: "POST",

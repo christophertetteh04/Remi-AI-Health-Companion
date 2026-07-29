@@ -66,6 +66,25 @@ export class MedicationsService {
     return data;
   }
 
+  async update(userId: string, medicationId: string, med: { name?: string; dose?: string; frequency?: string; hour?: number; minute?: number }) {
+    const updates: Record<string, any> = {};
+    if (med.name != null) updates.name = med.name;
+    if (med.dose != null) updates.dose = med.dose;
+    if (med.frequency != null) updates.frequency = med.frequency;
+    if (med.hour != null) updates.time_of_day = `${med.hour}:${med.minute ?? 0}`;
+
+    const { data, error } = await this.supabase.client
+      .from("medications")
+      .update(updates)
+      .eq("id", medicationId)
+      .eq("user_id", userId)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) throw new NotFoundException("Medication not found");
+    return data;
+  }
+
   // Direct-match allergy check only — no interaction reasoning.
   // See flow doc section 14: this stays a simple string match against
   // the user's stated allergy list, never AI-generated interaction logic.
