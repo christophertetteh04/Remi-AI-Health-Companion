@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, Max, Min } from "class-validator";
+import { IsBoolean, IsNumber, IsOptional, Max, Min } from "class-validator";
 
 export class SubmitVitalsDto {
   @IsNumber()
@@ -16,4 +16,14 @@ export class SubmitVitalsDto {
   @Min(20)
   @Max(800)
   glucose?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  wellbeing?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  pregnancyMode?: boolean;
 }

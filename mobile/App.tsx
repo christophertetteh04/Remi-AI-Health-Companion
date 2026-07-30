@@ -74,6 +74,9 @@ export default function App() {
         if (data?.type === "medication") navigateFromNotification("Meds");
         if (data?.type === "vitals") navigateFromNotification("Vitals");
         if (data?.type === "weekly_brief") navigateFromNotification("Chat");
+        if (data?.type === "doctor_visit_prep") navigateFromNotification("Chat");
+        if (data?.type === "doctor_visit") navigateFromNotification("Chat");
+        if (data?.type === "doctor_visit_followup") navigateFromNotification("Chat");
       });
       removeNotificationListener = () => sub.remove();
     });

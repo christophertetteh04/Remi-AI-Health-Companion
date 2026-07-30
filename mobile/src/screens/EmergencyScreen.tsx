@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { ScrollView, View, Text, Linking, Pressable, StyleSheet } from "react-native";
+import { Alert, ScrollView, View, Text, Linking, Pressable, StyleSheet } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { colors, fonts } from "../theme/tokens";
 import { Card } from "../components/UI";
-import { AlertTriangle, ChevronRight, FilePenLine, Lock, PhoneCall, ShieldAlert, ShieldCheck } from "lucide-react-native";
+import { AlertTriangle, ChevronRight, FilePenLine, PhoneCall, ShieldAlert, ShieldCheck } from "lucide-react-native";
+import { addRecentActivity } from "../services/recentActivity";
 
 const STORAGE_KEY = "remi_emergency_info";
+const EMERGENCY_LINE_NUMBER = "988";
+const EMERGENCY_LINE_LABEL = "988 Suicide & Crisis Lifeline";
 
 export default function EmergencyScreen({ navigation }: any) {
   const [info, setInfo] = useState<{ bloodType: string; allergies: string; medications: string; contactName: string; contactPhone: string } | null>(null);
@@ -28,6 +31,60 @@ export default function EmergencyScreen({ navigation }: any) {
     ["Contact", info?.contactName ? `${info.contactName} - ${info.contactPhone}` : "Not added"],
   ];
 
+  const openAssistanceOptions = () => {
+    const contactLabel = info?.contactName && info?.contactPhone
+      ? `${info.contactName} (${info.contactPhone})`
+      : "No emergency contact added";
+    const actions: any[] = [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: `Call ${EMERGENCY_LINE_NUMBER}`,
+        onPress: async () => {
+          await logEmergencyAssistance("Emergency line called", `Called ${EMERGENCY_LINE_NUMBER} — ${EMERGENCY_LINE_LABEL}`);
+          Linking.openURL(`tel:${EMERGENCY_LINE_NUMBER}`);
+        },
+      },
+    ];
+
+    if (info?.contactPhone) {
+      actions.push({
+        text: `Call ${info.contactName || "emergency contact"}`,
+        onPress: async () => {
+          await logEmergencyAssistance("Emergency contact called", `Called ${info.contactName || "saved emergency contact"} (${info.contactPhone})`);
+          Linking.openURL(`tel:${info.contactPhone}`);
+        },
+      });
+    } else {
+      actions.push({
+        text: "Add emergency contact",
+        onPress: async () => {
+          await logEmergencyAssistance("Emergency contact setup opened", "User opened emergency contact setup from Safety assistance.");
+          navigation.navigate("EmergencySettings");
+        },
+      });
+    }
+
+    logEmergencyAssistance(
+      "Emergency assistance opened",
+      info?.contactPhone ? `Options shown: ${EMERGENCY_LINE_NUMBER} and ${info.contactName || "saved emergency contact"}` : `Option shown: ${EMERGENCY_LINE_NUMBER}; no saved contact yet.`,
+    );
+
+    Alert.alert(
+      "Emergency assistance",
+      `Emergency line: ${EMERGENCY_LINE_NUMBER} — ${EMERGENCY_LINE_LABEL}\nEmergency contact: ${contactLabel}`,
+      actions,
+    );
+  };
+
+  const logEmergencyAssistance = async (title: string, detail: string) => {
+    await addRecentActivity({
+      type: "safety",
+      title,
+      detail,
+      route: "Safety",
+    });
+  };
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
       <View style={styles.header}>
@@ -41,14 +98,14 @@ export default function EmergencyScreen({ navigation }: any) {
         </View>
       </View>
 
-      <Pressable onPress={() => Linking.openURL("tel:112")} style={styles.sosCard}>
+      <Pressable onPress={openAssistanceOptions} style={styles.sosCard}>
         <View style={styles.sosIcon}>
           <PhoneCall size={26} color={colors.bg} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.sosLabel}>Emergency assistance</Text>
-          <Text style={styles.sosTitle}>Call 112</Text>
-          <Text style={styles.sosSub}>Ghana national emergency line</Text>
+          <Text style={styles.sosTitle}>Get help now</Text>
+          <Text style={styles.sosSub}>{EMERGENCY_LINE_NUMBER} and {info?.contactPhone ? info.contactName || "your emergency contact" : "your saved contact"}</Text>
         </View>
         <ChevronRight size={18} color={colors.urgent} />
       </Pressable>
@@ -94,16 +151,6 @@ export default function EmergencyScreen({ navigation }: any) {
           <ChevronRight size={16} color={colors.inkFaint} />
         </Pressable>
 
-        <Pressable onPress={() => navigation.navigate("Settings")} style={styles.actionRow}>
-          <View style={[styles.actionIcon, { backgroundColor: colors.mintDim }]}>
-            <Lock size={17} color={colors.mint} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Privacy & data controls</Text>
-            <Text style={styles.cardSub}>View, export, or delete your health data</Text>
-          </View>
-          <ChevronRight size={16} color={colors.inkFaint} />
-        </Pressable>
       </View>
 
       <View style={styles.footerNote}>
@@ -149,7 +196,7 @@ const styles = StyleSheet.create({
   setupPrompt: { flexDirection: "row", alignItems: "center", backgroundColor: colors.peachDim, borderRadius: 10, padding: 12, marginTop: 12 },
   setupText: { color: colors.peach, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginLeft: 9, flex: 1 },
   actionList: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, overflow: "hidden" },
-  actionRow: { flexDirection: "row", alignItems: "center", minHeight: 72, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
+  actionRow: { flexDirection: "row", alignItems: "center", minHeight: 72, paddingHorizontal: 14 },
   actionIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 12 },
   cardTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.5 },
   cardSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 3, lineHeight: 16 },

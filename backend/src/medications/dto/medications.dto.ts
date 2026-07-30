@@ -14,6 +14,16 @@ export class CreateMedicationDto {
   frequency: string;
 
   @IsOptional()
+  @IsString()
+  @Length(0, 80)
+  duration?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(0, 500)
+  medicationExplanation?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(23)
@@ -33,6 +43,14 @@ export class CreateMedicationDto {
   @IsString()
   @Length(1, 120)
   conversationRef?: string;
+
+  @IsOptional()
+  @IsString()
+  prescriptionImageBase64?: string;
+
+  @IsOptional()
+  @IsString()
+  prescriptionImageMediaType?: string;
 }
 
 export class LogMedicationTakenDto {

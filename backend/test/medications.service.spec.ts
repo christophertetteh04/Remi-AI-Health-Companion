@@ -75,10 +75,60 @@ describe("MedicationsService.create", () => {
       conversationRef: "turn-1",
     });
 
-    expect(result).toEqual({ id: "med-1", source: "chat" });
+    expect(result).toEqual(expect.objectContaining({ id: "med-1", source: "chat" }));
     expect(insert).toHaveBeenCalledTimes(2);
     expect(insert.mock.calls[0][0]).toHaveProperty("conversation_ref", "turn-1");
     expect(insert.mock.calls[1][0]).not.toHaveProperty("conversation_ref");
+  });
+
+  it("stores the original prescription image and returns a direct allergy match", async () => {
+    const upload = jest.fn().mockResolvedValue({ error: null });
+    const medicationSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: "med-1",
+        name: "Penicillin",
+        prescription_image_url: "user-1/image.jpg",
+        medication_explanation: "Antibiotic reference text",
+      },
+      error: null,
+    });
+    const insert = jest.fn(() => ({ select: () => ({ single: medicationSingle }) }));
+    const allergyEq = jest.fn().mockResolvedValue({ data: [{ substance: "penicillin" }], error: null });
+    const emergencyMaybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+    const from = jest.fn((table: string) => {
+      if (table === "medications") return { insert };
+      if (table === "allergies") return { select: () => ({ eq: allergyEq }) };
+      if (table === "emergency_info") return { select: () => ({ eq: () => ({ maybeSingle: emergencyMaybeSingle }) }) };
+      return {};
+    });
+    const service = new MedicationsService({
+      client: {
+        from,
+        storage: { from: jest.fn(() => ({ upload })) },
+      },
+    } as any);
+
+    const result = await service.create("user-1", {
+      name: "Penicillin",
+      dose: "250 mg",
+      frequency: "twice daily",
+      duration: "7 days",
+      medicationExplanation: "Antibiotic reference text",
+      prescriptionImageBase64: Buffer.from("image").toString("base64"),
+      prescriptionImageMediaType: "image/jpeg",
+      source: "ocr",
+    });
+
+    expect(upload).toHaveBeenCalled();
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({
+      prescription_image_url: expect.any(String),
+      duration: "7 days",
+      medication_explanation: "Antibiotic reference text",
+    }));
+    expect(result.allergyCheck).toEqual({
+      conflict: true,
+      message: "This matches a listed allergy: penicillin",
+    });
   });
 });
 

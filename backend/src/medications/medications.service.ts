@@ -19,33 +19,59 @@ export class MedicationsService {
     return data;
   }
 
-  async create(userId: string, med: { name: string; dose: string; frequency: string; hour?: number; minute?: number; source?: string; conversationRef?: string }) {
+  async create(userId: string, med: {
+    name: string;
+    dose: string;
+    frequency: string;
+    duration?: string;
+    medicationExplanation?: string;
+    hour?: number;
+    minute?: number;
+    source?: string;
+    conversationRef?: string;
+    prescriptionImageBase64?: string;
+    prescriptionImageMediaType?: string;
+  }) {
+    const prescriptionImageUrl = med.prescriptionImageBase64
+      ? await this.storePrescriptionImage(userId, med.prescriptionImageBase64, med.prescriptionImageMediaType || "image/jpeg")
+      : null;
+    const allergies = await this.listUserAllergies(userId);
+    const allergyCheck = await this.checkAgainstAllergies(med.name, allergies);
     const payload = {
       user_id: userId,
       name: med.name,
       dose: med.dose,
       frequency: med.frequency,
+      duration: med.duration || null,
+      medication_explanation: med.medicationExplanation || null,
       time_of_day: med.hour != null ? `${med.hour}:${med.minute ?? 0}` : null,
       source: med.source || "manual",
       conversation_ref: med.conversationRef || null,
+      prescription_image_url: prescriptionImageUrl,
     };
     const { data, error } = await this.supabase.client
       .from("medications")
       .insert(payload)
       .select()
       .single();
-    if (isMissingColumnError(error, "conversation_ref")) {
-      const { conversation_ref: _conversationRef, ...legacyPayload } = payload;
+    if (isMissingMedicationSchemaError(error)) {
+      const {
+        conversation_ref: _conversationRef,
+        duration: _duration,
+        medication_explanation: _medicationExplanation,
+        prescription_image_url: _prescriptionImageUrl,
+        ...legacyPayload
+      } = payload;
       const retry = await this.supabase.client
         .from("medications")
         .insert(legacyPayload)
         .select()
         .single();
       if (retry.error) throw retry.error;
-      return retry.data;
+      return { ...retry.data, allergyCheck, medicationExplanation: med.medicationExplanation || null, prescriptionImageUrl };
     }
     if (error) throw error;
-    return data;
+    return { ...data, allergyCheck };
   }
 
   async logTaken(userId: string, medicationId: string, takenAt: string, analyticsEnabled = true) {
@@ -96,8 +122,51 @@ export class MedicationsService {
       ? { conflict: true, message: `This matches a listed allergy: ${match}` }
       : { conflict: false, message: "No known conflict with your listed allergies." };
   }
+
+  private async listUserAllergies(userId: string) {
+    const allergies: string[] = [];
+    try {
+      const { data: allergyRows } = await this.supabase.client
+        .from("allergies")
+        .select("substance")
+        .eq("user_id", userId);
+      for (const row of allergyRows || []) {
+        if (row.substance) allergies.push(row.substance);
+      }
+    } catch {
+      // Allergy checking is direct-match only and should not block a
+      // confirmed prescription save if the optional allergy table is absent.
+    }
+
+    try {
+      const { data: emergencyInfo } = await this.supabase.client
+        .from("emergency_info")
+        .select("allergies_text")
+        .eq("user_id", userId)
+        .maybeSingle();
+      String(emergencyInfo?.allergies_text || "")
+        .split(/[,;\n]/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .forEach((item) => allergies.push(item));
+    } catch {
+      // Same as above: no speculative allergy inference.
+    }
+
+    return allergies;
+  }
+
+  private async storePrescriptionImage(userId: string, imageBase64: string, mediaType: string) {
+    const extension = mediaType.includes("png") ? "png" : "jpg";
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+    const { error } = await this.supabase.client.storage
+      .from("prescription-images")
+      .upload(path, Buffer.from(imageBase64, "base64"), { contentType: mediaType });
+    if (error) throw error;
+    return path;
+  }
 }
 
-function isMissingColumnError(error: any, column: string) {
-  return error?.code === "PGRST204" && typeof error?.message === "string" && error.message.includes(`'${column}' column`);
+function isMissingMedicationSchemaError(error: any) {
+  return error?.code === "PGRST204" && typeof error?.message === "string" && /'(conversation_ref|duration|medication_explanation|prescription_image_url)' column/.test(error.message);
 }

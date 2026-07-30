@@ -11,9 +11,13 @@ export class AdminService {
 
   async listUsers() {
     await this.logAccess("users", "list");
-    const { data, error } = await this.supabase.client
-      .from("users")
-      .select("id, full_name, phone, language, created_at");
+    const response = await this.safeQuery(() =>
+      this.supabase.client
+        .from("users")
+        .select("id, full_name, phone, language, created_at"),
+    );
+    if (!response.ok) return [];
+    const { data, error } = response.result;
     if (error) throw error;
     return (data || []).map((user) => ({
       id: user.id,
@@ -48,16 +52,28 @@ export class AdminService {
       this.countRows("access_logs", (query) => query.gte("created_at", since24h)),
       this.countRows("recent_activities", (query) => query.gte("created_at", since7d)),
     ]);
-
-    return {
+    const degraded = [
       totalUsers,
       newUsers7d,
-      urgentCases7d: urgentSymptoms7d + urgentVitals7d,
+      urgentSymptoms7d,
+      urgentVitals7d,
       medicationLogs24h,
       providerIncidents24h,
       accessLogs24h,
       recentActivities7d,
+    ].some((value) => value === null);
+
+    return {
+      totalUsers: totalUsers || 0,
+      newUsers7d: newUsers7d || 0,
+      urgentCases7d: (urgentSymptoms7d || 0) + (urgentVitals7d || 0),
+      medicationLogs24h: medicationLogs24h || 0,
+      providerIncidents24h: providerIncidents24h || 0,
+      accessLogs24h: accessLogs24h || 0,
+      recentActivities7d: recentActivities7d || 0,
       generatedAt: new Date().toISOString(),
+      status: degraded ? "degraded" : "ok",
+      warning: degraded ? "Some admin metrics could not be loaded because the database is temporarily unreachable." : undefined,
     };
   }
 
@@ -85,7 +101,7 @@ export class AdminService {
           this.countRows(item.table),
           this.countRows(item.table, (query) => query.gte(item.dateColumn, since7d)),
         ]);
-        return { ...item, total, last7d };
+        return { ...item, total: total || 0, last7d: last7d || 0, degraded: total === null || last7d === null };
       }),
     );
 
@@ -119,16 +135,22 @@ export class AdminService {
 
   async listFlagged() {
     await this.logAccess("flagged_cases", "list");
-    const { data: episodes } = await this.supabase.client
-      .from("symptom_episodes")
-      .select("*")
-      .eq("urgency", "urgent")
-      .order("created_at", { ascending: false });
-    const { data: vitals } = await this.supabase.client
-      .from("vitals_readings")
-      .select("*")
-      .eq("tier", "urgent")
-      .order("created_at", { ascending: false });
+    const episodesResponse = await this.safeQuery(() =>
+      this.supabase.client
+        .from("symptom_episodes")
+        .select("*")
+        .eq("urgency", "urgent")
+        .order("created_at", { ascending: false }),
+    );
+    const vitalsResponse = await this.safeQuery(() =>
+      this.supabase.client
+        .from("vitals_readings")
+        .select("*")
+        .eq("tier", "urgent")
+        .order("created_at", { ascending: false }),
+    );
+    const episodes = episodesResponse.ok ? episodesResponse.result.data : [];
+    const vitals = vitalsResponse.ok ? vitalsResponse.result.data : [];
     return {
       symptomEpisodes: (episodes || []).map((episode) => ({
         id: episode.id,
@@ -143,30 +165,48 @@ export class AdminService {
         tier: reading.tier,
         created_at: reading.created_at,
       })),
+      status: episodesResponse.ok && vitalsResponse.ok ? "ok" : "degraded",
+      warning: episodesResponse.ok && vitalsResponse.ok ? undefined : "Could not load all flagged records because the database is temporarily unreachable.",
     };
   }
 
   async listAccessLogs() {
-    const { data, error } = await this.supabase.client
-      .from("access_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200);
+    const response = await this.safeQuery(() =>
+      this.supabase.client
+        .from("access_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(200),
+    );
+    if (!response.ok) return [];
+    const { data, error } = response.result;
     if (error) throw error;
     return data;
   }
 
   async listProviderIncidents() {
     await this.logAccess("provider_incidents", "list");
-    const { data, error } = await this.supabase.client
-      .from("provider_incidents")
-      .select("*")
-      .order("occurred_at", { ascending: false })
-      .limit(20);
+    const response = await this.safeQuery(() =>
+      this.supabase.client
+        .from("provider_incidents")
+        .select("*")
+        .order("occurred_at", { ascending: false })
+        .limit(20),
+    );
+    if (!response.ok) {
+      return {
+        providers: this.aiProviderRouter.getProviderHealth(),
+        incidents: [],
+        status: "degraded",
+        warning: "Provider incidents could not be loaded because the database is temporarily unreachable.",
+      };
+    }
+    const { data, error } = response.result;
     if (isMissingTableError(error)) {
       return {
         providers: this.aiProviderRouter.getProviderHealth(),
         incidents: [],
+        status: "degraded",
         warning: "provider_incidents table has not been created yet.",
       };
     }
@@ -174,6 +214,7 @@ export class AdminService {
     return {
       providers: this.aiProviderRouter.getProviderHealth(),
       incidents: data || [],
+      status: "ok",
     };
   }
 
@@ -181,20 +222,35 @@ export class AdminService {
   // the sole developer/admin — per the access-logging decision in the
   // flow doc (section 26).
   private async logAccess(resource: string, action: string) {
-    await this.supabase.client.from("access_logs").insert({
-      resource,
-      action,
-      actor: "admin",
-    });
+    try {
+      await this.supabase.client.from("access_logs").insert({
+        resource,
+        action,
+        actor: "admin",
+      });
+    } catch (error) {
+      console.warn("Admin access log skipped:", safeAdminError(error));
+    }
   }
 
-  private async countRows(table: string, apply?: (query: any) => any) {
+  private async countRows(table: string, apply?: (query: any) => any): Promise<number | null> {
     let query = this.supabase.client.from(table as any).select("*", { count: "exact", head: true });
     if (apply) query = apply(query);
-    const { count, error } = await query;
+    const response = await this.safeQuery(() => query);
+    if (!response.ok) return null;
+    const { count, error } = response.result;
     if (isMissingTableError(error)) return 0;
     if (error) throw error;
     return count || 0;
+  }
+
+  private async safeQuery<T>(query: () => PromiseLike<T>): Promise<{ ok: true; result: T } | { ok: false; error: unknown }> {
+    try {
+      return { ok: true, result: await query() };
+    } catch (error) {
+      console.warn("Admin database query unavailable:", safeAdminError(error));
+      return { ok: false, error };
+    }
   }
 }
 
@@ -242,4 +298,9 @@ function configStatus(label: string, key: string) {
 
 function isMissingTableError(error: any) {
   return error?.code === "PGRST205" || /Could not find the table/i.test(String(error?.message || ""));
+}
+
+function safeAdminError(error: unknown) {
+  if (error instanceof Error) return error.message.slice(0, 180);
+  return String(error).slice(0, 180);
 }

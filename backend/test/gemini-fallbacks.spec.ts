@@ -146,6 +146,7 @@ describe("Gemini malformed output fallbacks", () => {
     expect(result).toEqual({
       drugName: "",
       purpose: "",
+      medicationExplanation: "",
       dose: "",
       frequency: "",
       duration: "",
@@ -169,7 +170,9 @@ describe("Gemini malformed output fallbacks", () => {
           response: {
             text: () => `{
               drugName: "Amlodipine",
-              purpose: "Used to help lower blood pressure.",
+              dose: "5 mg",
+              frequency: "once daily",
+              duration: "30 days",
               confidence: "high",
               note: null,
             }`,
@@ -182,6 +185,10 @@ describe("Gemini malformed output fallbacks", () => {
 
     expect(result.drugName).toBe("Amlodipine");
     expect(result.purpose).toBe("Used to help lower blood pressure.");
+    expect(result.medicationExplanation).toBe("Used to help lower blood pressure.");
+    expect(result.dose).toBe("5 mg");
+    expect(result.frequency).toBe("once daily");
+    expect(result.duration).toBe("30 days");
     expect(result.confidence).toBe("high");
     expect(result.knownDrug).toBe(true);
 
@@ -199,7 +206,7 @@ describe("Gemini malformed output fallbacks", () => {
           response: {
             text: () => `{
               "drugName": "Metformin",
-              "purpose": "Used to help manage blood sugar levels`,
+              "dose": "500 mg`,
           },
         }),
       })),
@@ -208,7 +215,9 @@ describe("Gemini malformed output fallbacks", () => {
     const result = await service.extractDraft("user-1", "base64-image");
 
     expect(result.drugName).toBe("Metformin");
-    expect(result.purpose).toBe("Used to help manage blood sugar levels");
+    expect(result.purpose).toBe("Used to help manage blood sugar levels.");
+    expect(result.medicationExplanation).toBe("Used to help manage blood sugar levels.");
+    expect(result.dose).toBe("500 mg");
     expect(result.confidence).toBe("low");
     expect(result.knownDrug).toBe(true);
 

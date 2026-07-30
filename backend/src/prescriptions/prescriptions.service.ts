@@ -10,21 +10,34 @@ const KNOWN_DRUGS = [
   "losartan", "atorvastatin", "omeprazole", "artemether", "lumefantrine",
 ];
 
+const DRUG_REFERENCE: Record<string, { displayName: string; explanation: string }> = {
+  amlodipine: { displayName: "Amlodipine", explanation: "Used to help lower blood pressure." },
+  metformin: { displayName: "Metformin", explanation: "Used to help manage blood sugar levels." },
+  amoxicillin: { displayName: "Amoxicillin", explanation: "Amoxicillin is an antibiotic used for some bacterial infections when prescribed by a clinician." },
+  paracetamol: { displayName: "Paracetamol", explanation: "Paracetamol is commonly used to reduce pain or fever." },
+  ibuprofen: { displayName: "Ibuprofen", explanation: "Ibuprofen is commonly used to reduce pain, fever, or inflammation." },
+  losartan: { displayName: "Losartan", explanation: "Losartan is commonly used to help lower blood pressure." },
+  atorvastatin: { displayName: "Atorvastatin", explanation: "Atorvastatin is commonly used to help lower cholesterol." },
+  omeprazole: { displayName: "Omeprazole", explanation: "Omeprazole is commonly used to reduce stomach acid." },
+  artemether: { displayName: "Artemether", explanation: "Artemether is used as part of some prescribed antimalarial treatments." },
+  lumefantrine: { displayName: "Lumefantrine", explanation: "Lumefantrine is used as part of some prescribed antimalarial treatments." },
+};
+
 const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
 const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.6-flash"];
 
 const PRESCRIPTION_SCAN_PROMPT = `
 You read prescription label or medication package images for Remi.
 Return ONLY strict JSON in this shape:
-{"drugName": string, "purpose": string, "confidence": "low" | "medium" | "high", "note": string | null}
+{"drugName": string, "dose": string, "frequency": string, "duration": string, "confidence": "low" | "medium" | "high", "note": string | null}
 
 Rules:
 - Identify only what is visible or strongly readable in the image.
 - drugName should be the medication name only, without dosage instructions.
-- purpose should explain in plain language what the medication is generally used for.
+- Extract dose, frequency, and duration only when visibly present.
 - Do not diagnose the user.
 - Do not tell the user to start, stop, change, or continue a medication.
-- Do not guess dose, frequency, duration, or reminders; the user must enter those.
+- Do not guess dose, frequency, duration, or reminders; empty strings are safer than guesses.
 - If the medication name is unclear, use an empty string, confidence "low",
   and a note asking the user to type the medication name from the package or prescription.
 `;
@@ -61,12 +74,14 @@ export class PrescriptionsService {
         const identified = await this.identifyMedication(imageBase64);
         const drugNameGuess = identified.drugName.trim().split(/\s+/)[0]?.toLowerCase() || "";
         const knownDrug = drugNameGuess ? KNOWN_DRUGS.includes(drugNameGuess) : null;
+        const reference = referenceForDrug(identified.drugName);
         return {
           drugName: identified.drugName,
-          purpose: identified.purpose,
-          dose: "",
-          frequency: "",
-          duration: "",
+          purpose: reference?.explanation || "",
+          medicationExplanation: reference?.explanation || "",
+          dose: identified.dose,
+          frequency: identified.frequency,
+          duration: identified.duration,
           confidence: identified.confidence,
           knownDrug,
           rawText: "",
@@ -86,6 +101,7 @@ export class PrescriptionsService {
       return {
         drugName: "",
         purpose: "",
+        medicationExplanation: "",
         dose: "",
         frequency: "",
         duration: "",
@@ -103,16 +119,19 @@ export class PrescriptionsService {
     const drugLine = lines[0] || "";
     const doseMatch = rawText.match(/(\d+\s?(mg|mcg|ml|g))/i);
     const freqMatch = rawText.match(/(once|twice|three times|\d+x)\s?(daily|a day|per day)/i);
+    const durationMatch = rawText.match(/(\d+\s?(day|days|week|weeks|month|months))/i);
 
     const drugNameGuess = drugLine.split(" ")[0]?.toLowerCase() || "";
     const knownDrug = KNOWN_DRUGS.includes(drugNameGuess);
+    const reference = referenceForDrug(drugLine);
 
     return {
       drugName: drugLine,
-      purpose: "",
+      purpose: reference?.explanation || "",
+      medicationExplanation: reference?.explanation || "",
       dose: doseMatch?.[0] || "",
       frequency: freqMatch?.[0] || "",
-      duration: "",
+      duration: durationMatch?.[0] || "",
       confidence: doseMatch && freqMatch ? "medium" : "low",
       knownDrug,
       rawText,
@@ -140,7 +159,7 @@ export class PrescriptionsService {
               role: "user",
               parts: [
                 { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
-                { text: "Identify the medication name and its general purpose from this image." },
+                { text: "Extract the prescription draft fields from this image." },
               ],
             },
           ],
@@ -193,7 +212,9 @@ function extractJsonObject(text: string) {
 function normalizePrescriptionDraft(parsed: any) {
   return {
     drugName: typeof parsed.drugName === "string" ? parsed.drugName.trim() : "",
-    purpose: typeof parsed.purpose === "string" ? parsed.purpose.trim() : "",
+    dose: typeof parsed.dose === "string" ? parsed.dose.trim() : "",
+    frequency: typeof parsed.frequency === "string" ? parsed.frequency.trim() : "",
+    duration: typeof parsed.duration === "string" ? parsed.duration.trim() : "",
     confidence: parsed.confidence === "high" || parsed.confidence === "medium" ? parsed.confidence : "low",
     note: typeof parsed.note === "string" && parsed.note.trim() ? parsed.note.trim() : null,
   };
@@ -211,7 +232,9 @@ function repairLooseJson(text: string) {
 function salvagePrescriptionFields(text: string) {
   return {
     ...pickStringField(text, "drugName"),
-    ...pickStringField(text, "purpose"),
+    ...pickStringField(text, "dose"),
+    ...pickStringField(text, "frequency"),
+    ...pickStringField(text, "duration"),
     ...pickStringField(text, "confidence"),
     ...pickStringField(text, "note"),
   };
@@ -220,4 +243,10 @@ function salvagePrescriptionFields(text: string) {
 function pickStringField(text: string, key: string) {
   const match = text.match(new RegExp(`["']?${key}["']?\\s*:\\s*["']([^"']*)`, "i"));
   return match ? { [key]: match[1].trim() } : {};
+}
+
+function referenceForDrug(drugName: string) {
+  const firstWord = drugName.trim().split(/\s+/)[0]?.toLowerCase();
+  if (!firstWord) return null;
+  return DRUG_REFERENCE[firstWord] || null;
 }

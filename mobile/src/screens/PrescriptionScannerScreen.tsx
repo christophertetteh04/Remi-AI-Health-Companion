@@ -24,8 +24,10 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3
 type Draft = {
   drugName: string;
   purpose: string;
+  medicationExplanation?: string;
   dose: string;
   frequency: string;
+  duration: string;
   note: string | null;
   confidence?: "low" | "medium" | "high";
 };
@@ -33,6 +35,8 @@ type Draft = {
 export default function PrescriptionScanScreen({ navigation, route }: any) {
   const launchedInitialPicker = useRef(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string>("");
+  const [imageMediaType, setImageMediaType] = useState("image/jpeg");
   const [scanning, setScanning] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [reminderTime, setReminderTime] = useState("08:00");
@@ -44,6 +48,7 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
     if (route?.params?.imageUri) {
       launchedInitialPicker.current = true;
       setImageUri(route.params.imageUri);
+      setImageBase64(route.params.imageBase64 || "");
       setDraft(null);
       if (route.params.imageBase64) {
         scan(route.params.imageBase64);
@@ -88,6 +93,8 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
       }
 
       setImageUri(asset.uri);
+      setImageBase64(asset.base64 || "");
+      setImageMediaType(asset.mimeType || "image/jpeg");
       setDraft(null);
       if (!asset.base64) {
         setDraft(emptyDraft("We couldn't read that image automatically. Please enter the details manually."));
@@ -112,8 +119,10 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
       setDraft({
         drugName: data?.drugName || "",
         purpose: data?.purpose || "",
-        dose: "",
-        frequency: "",
+        medicationExplanation: data?.medicationExplanation || data?.purpose || "",
+        dose: data?.dose || "",
+        frequency: data?.frequency || "",
+        duration: data?.duration || "",
         note: data?.note || null,
         confidence: data?.confidence || "low",
       });
@@ -143,15 +152,26 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
           name: draft.drugName.trim(),
           dose: draft.dose.trim(),
           frequency: draft.frequency.trim(),
+          duration: draft.duration.trim(),
+          medicationExplanation: (draft.medicationExplanation || draft.purpose || "").trim(),
           hour,
           minute,
           source: route?.params?.recordSource === "chat" ? "chat" : "ocr",
           conversationRef: route?.params?.conversationRef,
+          prescriptionImageBase64: imageBase64 || undefined,
+          prescriptionImageMediaType: imageMediaType,
         }),
       });
       const saved = await res.json();
       if (!res.ok || !saved?.id) throw new Error();
-      await scheduleMedicationReminder(saved.id, hour, minute);
+      if (saved.allergyCheck?.conflict) {
+        Alert.alert("Allergy match found", saved.allergyCheck.message || "This medication matches one of your stated allergies.");
+      }
+      await scheduleMedicationReminder(saved.id, hour, minute, {
+        name: draft.drugName.trim(),
+        dose: draft.dose.trim(),
+        purpose: (draft.medicationExplanation || draft.purpose || "").trim(),
+      });
       await addRecentActivity({
         type: "medication",
         title: "Prescription added",
@@ -194,7 +214,7 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
           </View>
           <Text style={styles.eyebrow}>PRESCRIPTION SCAN</Text>
           <Text style={styles.title}>Add medication safely</Text>
-          <Text style={styles.subtitle}>Remi can identify the medicine and its general use. You review and complete the details before it becomes a reminder.</Text>
+          <Text style={styles.subtitle}>Remi can extract prescription details, but nothing is saved until you confirm every field.</Text>
         </View>
 
         <View style={styles.actionRow}>
@@ -254,8 +274,8 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
             />
             <Input
               label="What it generally does"
-              value={draft.purpose}
-              onChangeText={(v) => setDraft({ ...draft, purpose: v })}
+              value={draft.medicationExplanation || draft.purpose}
+              onChangeText={(v) => setDraft({ ...draft, medicationExplanation: v, purpose: v })}
               placeholder="e.g. Helps lower blood pressure"
               multiline
             />
@@ -273,6 +293,12 @@ export default function PrescriptionScanScreen({ navigation, route }: any) {
               value={draft.frequency}
               onChangeText={(v) => setDraft({ ...draft, frequency: v })}
               placeholder="e.g. once daily"
+            />
+            <Input
+              label="Duration"
+              value={draft.duration}
+              onChangeText={(v) => setDraft({ ...draft, duration: v })}
+              placeholder="e.g. 7 days"
             />
             <Input
               label="Reminder time"
@@ -325,7 +351,7 @@ function Input({
 }
 
 function emptyDraft(note: string): Draft {
-  return { drugName: "", purpose: "", dose: "", frequency: "", note, confidence: "low" };
+  return { drugName: "", purpose: "", medicationExplanation: "", dose: "", frequency: "", duration: "", note, confidence: "low" };
 }
 
 const styles = StyleSheet.create({

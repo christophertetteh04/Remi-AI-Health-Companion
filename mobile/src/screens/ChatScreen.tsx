@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Animated, Easing, Image, Modal, View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { Alert, Animated, Easing, Image, Modal, View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
+import * as SecureStore from "expo-secure-store";
 import { colors, fonts, urgencyColor } from "../theme/tokens";
 import { Camera, FileText, FlaskConical, HeartPulse, Mic, ScanLine, Send, ShieldCheck, Sparkles, Square, Trash2, Venus, X } from "lucide-react-native";
 import { type CheckinTopic, type DocumentUploadCategory, sendCheckinMessage, uploadCheckinImage } from "../services/api";
@@ -9,9 +10,13 @@ import * as ImagePicker from "expo-image-picker";
 import { addRecentActivity } from "../services/recentActivity";
 import { clearChatMemory, loadChatMemory, saveChatMemory } from "../services/chatMemory";
 import { buildHealthMemoryContext } from "../services/healthMemory";
+import { createDoctorVisitPlan } from "../services/doctorVisits";
 import { trackEvent } from "../services/posthog";
 
 const BODY_LOCATIONS = ["Head", "Chest", "Abdomen", "Arm", "Leg", "Back", "Skin", "Other"];
+const EMERGENCY_INFO_KEY = "remi_emergency_info";
+const EMERGENCY_LINE_NUMBER = "988";
+const EMERGENCY_LINE_LABEL = "988 Suicide & Crisis Lifeline";
 const DOCUMENT_CHOICES: { category: DocumentUploadCategory; label: string }[] = [
   { category: "lab_report", label: "Lab report" },
   { category: "prescription", label: "Prescription" },
@@ -32,6 +37,11 @@ type PendingUpload = {
 type PendingUploadAction = {
   mode: "document_type" | "sample_type";
   upload: PendingUpload;
+};
+type PendingDoctorReferral = {
+  urgency: "normal" | "monitor" | "urgent";
+  concern: string;
+  bodyLocation?: string;
 };
 const sexualHealthPrompt =
   "We can talk about STI symptoms, testing, contraception, periods, pregnancy concerns, or reproductive health. I won't diagnose you. What are you noticing, and when did it start?";
@@ -67,6 +77,8 @@ export default function ChatScreen({ navigation }: any) {
   const [checkinTopic, setCheckinTopic] = useState<CheckinTopic>("general");
   const [pendingPhotoUpload, setPendingPhotoUpload] = useState<PendingUpload | null>(null);
   const [pendingUploadAction, setPendingUploadAction] = useState<PendingUploadAction | null>(null);
+  const [pendingDoctorReferral, setPendingDoctorReferral] = useState<PendingDoctorReferral | null>(null);
+  const [lastBodyLocation, setLastBodyLocation] = useState<string | undefined>();
   const [savingPhoto, setSavingPhoto] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -84,11 +96,25 @@ export default function ChatScreen({ navigation }: any) {
 
   const send = async () => {
     if (!input.trim()) return;
+    const emergencyAssistanceRequested = detectEmergencyAssistanceIntent(input);
     const userMsg = makeMessage({ from: "user", text: input });
+    const locationGuess = detectBodyLocation(input);
     const next = [...messages, userMsg];
     setMessages(next);
     await saveChatMemory(next);
     setInput("");
+    if (emergencyAssistanceRequested) {
+      await handleEmergencyAssistanceRequest(next);
+      return;
+    }
+    if (detectDoctorOutcome(input)) {
+      await addRecentActivity({
+        type: "chat",
+        title: "Doctor visit outcome logged",
+        detail: input.trim(),
+        route: "Chat",
+      });
+    }
     setLoading(true);
     try {
       const memoryContext = await buildHealthMemoryContext();
@@ -105,18 +131,89 @@ export default function ChatScreen({ navigation }: any) {
         detail: res.urgency === "urgent" ? "Urgent guidance was recommended" : "Conversation saved from Chat",
         route: "Chat",
       });
+      if (shouldOfferDoctorReferral(res.reply, res.urgency)) {
+        setPendingDoctorReferral({
+          urgency: res.urgency,
+          concern: input,
+          bodyLocation: locationGuess || lastBodyLocation,
+        });
+      }
       const updated = [...next, makeMessage({ from: "bot", text: res.reply, urgency: res.urgency })];
       setMessages(updated);
       await saveChatMemory(updated);
+      if (locationGuess) promptBodyLocationConfirmation(locationGuess);
     } catch (e: any) {
       console.log("Check-in chat error:", e?.message || String(e));
       const updated = [...next, makeMessage({ from: "bot", text: "I’m having trouble connecting to Remi right now. Please check that the backend is running, then try again." })];
       setMessages(updated);
       await saveChatMemory(updated);
+      if (locationGuess) promptBodyLocationConfirmation(locationGuess);
     } finally {
       setLoading(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
+  };
+
+  const handleEmergencyAssistanceRequest = async (baseMessages: Msg[]) => {
+    const info = await loadEmergencyInfo();
+    const contactLabel = info?.contactName && info?.contactPhone
+      ? `${info.contactName} (${info.contactPhone})`
+      : "No emergency contact added yet.";
+    const botMessage = makeMessage({
+      from: "bot",
+      text: `I can help you reach emergency support now. Emergency line: ${EMERGENCY_LINE_NUMBER} — ${EMERGENCY_LINE_LABEL}. Emergency contact: ${contactLabel}`,
+      urgency: "urgent",
+    });
+    const updated = [...baseMessages, botMessage];
+    setMessages(updated);
+    await saveChatMemory(updated);
+    await addRecentActivity({
+      type: "safety",
+      title: "Emergency assistance opened",
+      detail: info?.contactPhone ? `Options shown: ${EMERGENCY_LINE_NUMBER} and ${info.contactName || "emergency contact"}` : `Option shown: ${EMERGENCY_LINE_NUMBER}`,
+      route: "Chat",
+    });
+
+    const actions: any[] = [
+      { text: "Cancel", style: "cancel" },
+      { text: `Call ${EMERGENCY_LINE_NUMBER}`, onPress: () => Linking.openURL(`tel:${EMERGENCY_LINE_NUMBER}`) },
+    ];
+    if (info?.contactPhone) {
+      actions.push({
+        text: `Call ${info.contactName || "emergency contact"}`,
+        onPress: () => Linking.openURL(`tel:${info.contactPhone}`),
+      });
+    } else {
+      actions.push({ text: "Add emergency contact", onPress: () => navigation.navigate("EmergencySettings") });
+    }
+
+    Alert.alert(
+      "Emergency assistance",
+      `Emergency line: ${EMERGENCY_LINE_NUMBER} — ${EMERGENCY_LINE_LABEL}\nEmergency contact: ${contactLabel}`,
+      actions,
+    );
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+  };
+
+  const promptBodyLocationConfirmation = (locationGuess: string) => {
+    navigation.navigate("BodyMap", {
+      initialLabel: locationGuess,
+      title: "Confirm location",
+      subtitle: "Did I understand the general area correctly? Remi only saves the location label.",
+      onSelect: async (locationLabel: string) => {
+        setLastBodyLocation(locationLabel);
+        setPendingDoctorReferral((current) => current ? { ...current, bodyLocation: locationLabel } : current);
+        await appendMessages([
+          makeMessage({ from: "bot", text: `Thanks — I’ll note the general location as ${locationLabel}. I’m only saving the location label, not judging what it looks like.` }),
+        ]);
+        await addRecentActivity({
+          type: "chat",
+          title: "Symptom location confirmed",
+          detail: `Location only: ${locationLabel}`,
+          route: "Chat",
+        });
+      },
+    });
   };
 
   const startSexualHealthCheckin = () => {
@@ -133,14 +230,27 @@ export default function ChatScreen({ navigation }: any) {
   };
 
   const deleteChat = () => {
-    cancelRecording();
-    setRecording(false);
-    setTranscribing(false);
-    setLoading(false);
-    setInput("");
-    setCheckinTopic("general");
-    setMessages([]);
-    clearChatMemory();
+    Alert.alert(
+      "Delete chat?",
+      "This will remove this chat history from Remi on this device and from your saved chat memory. Do you want to continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            cancelRecording();
+            setRecording(false);
+            setTranscribing(false);
+            setLoading(false);
+            setInput("");
+            setCheckinTopic("general");
+            setMessages([]);
+            clearChatMemory();
+          },
+        },
+      ],
+    );
   };
 
   const appendMessages = async (items: Msg[]) => {
@@ -225,6 +335,36 @@ export default function ChatScreen({ navigation }: any) {
       setMessages((prev) => [...prev, makeMessage({ from: "bot", text: error?.message || "Couldn't save that photo just now. Please try again with a smaller image." })]);
     } finally {
       setSavingPhoto(false);
+    }
+  };
+
+  const scheduleDoctorVisit = async (offsetDays: number) => {
+    if (!pendingDoctorReferral) return;
+    const visitDate = new Date();
+    visitDate.setDate(visitDate.getDate() + offsetDays);
+    visitDate.setHours(9, 0, 0, 0);
+    const referral = pendingDoctorReferral;
+    setPendingDoctorReferral(null);
+    setLoading(true);
+    try {
+      const visit = await createDoctorVisitPlan({
+        urgency: referral.urgency,
+        concern: referral.concern,
+        bodyLocation: referral.bodyLocation,
+        visitDate,
+      });
+      const updated = await appendMessages([
+        makeMessage({
+          from: "bot",
+          text: `I saved a doctor-visit reminder for ${visitDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}. I also prepared this summary for you:\n\n${visit.prepSummary}`,
+          urgency: referral.urgency,
+        }),
+      ]);
+      await saveChatMemory(updated);
+    } catch (error: any) {
+      await appendMessages([makeMessage({ from: "bot", text: error?.message || "I couldn't schedule that visit reminder just now. Please try again." })]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -387,6 +527,22 @@ export default function ChatScreen({ navigation }: any) {
             </Pressable>
           </QuickReplyPanel>
         )}
+        {pendingDoctorReferral && (
+          <QuickReplyPanel title={pendingDoctorReferral.urgency === "urgent" ? "Plan urgent care" : "Add a doctor visit reminder?"}>
+            <Pressable onPress={() => scheduleDoctorVisit(pendingDoctorReferral.urgency === "urgent" ? 0 : 1)} style={styles.quickReplyButton}>
+              <Text style={styles.quickReplyText}>{pendingDoctorReferral.urgency === "urgent" ? "Today" : "Tomorrow"}</Text>
+            </Pressable>
+            <Pressable onPress={() => scheduleDoctorVisit(3)} style={styles.quickReplyButton}>
+              <Text style={styles.quickReplyText}>In 3 days</Text>
+            </Pressable>
+            <Pressable onPress={() => scheduleDoctorVisit(7)} style={styles.quickReplyButton}>
+              <Text style={styles.quickReplyText}>In 1 week</Text>
+            </Pressable>
+            <Pressable onPress={() => setPendingDoctorReferral(null)} style={styles.quickReplySecondary}>
+              <Text style={styles.quickReplySecondaryText}>Not now</Text>
+            </Pressable>
+          </QuickReplyPanel>
+        )}
         {loading && <TypingIndicator />}
       </ScrollView>
 
@@ -495,6 +651,53 @@ function resultMessage(data: any) {
   if (result.message) return result.message;
   if (data?.message) return data.message;
   return `Saved this ${label} from your check-in.`;
+}
+
+function detectBodyLocation(text: string) {
+  const lower = text.toLowerCase();
+  const rules: { label: string; patterns: RegExp[] }[] = [
+    { label: "Head", patterns: [/\bhead\b/, /\bheadache\b/, /\bforehead\b/, /\bmigraine\b/, /\bear\b/, /\beye\b/, /\bthroat\b/, /\bneck\b/] },
+    { label: "Chest", patterns: [/\bchest\b/, /\bbreast\b/, /\brib\b/, /\bheart\b/] },
+    { label: "Abdomen", patterns: [/\babdomen\b/, /\babdominal\b/, /\bstomach\b/, /\bbelly\b/, /\btummy\b/, /\bpelvic\b/, /\bpelvis\b/] },
+    { label: "Upper back", patterns: [/\bupper back\b/, /\bshoulder blade\b/] },
+    { label: "Lower back", patterns: [/\blower back\b/, /\bwaist\b/] },
+    { label: "Left arm", patterns: [/\bleft arm\b/, /\bleft hand\b/, /\bleft wrist\b/, /\bleft elbow\b/] },
+    { label: "Right arm", patterns: [/\bright arm\b/, /\bright hand\b/, /\bright wrist\b/, /\bright elbow\b/] },
+    { label: "Left leg", patterns: [/\bleft leg\b/, /\bleft knee\b/, /\bleft foot\b/, /\bleft ankle\b/] },
+    { label: "Right leg", patterns: [/\bright leg\b/, /\bright knee\b/, /\bright foot\b/, /\bright ankle\b/] },
+    { label: "Left arm", patterns: [/\barm\b/, /\bhand\b/, /\bwrist\b/, /\belbow\b/] },
+    { label: "Left leg", patterns: [/\bleg\b/, /\bknee\b/, /\bfoot\b/, /\bankle\b/] },
+    { label: "Chest", patterns: [/\bshortness of breath\b/, /\btrouble breathing\b/] },
+  ];
+  return rules.find((rule) => rule.patterns.some((pattern) => pattern.test(lower)))?.label || null;
+}
+
+function detectEmergencyAssistanceIntent(text: string) {
+  const lower = text.toLowerCase();
+  return /\b(call|phone|dial|contact|reach|get)\b.*\b(emergency|ambulance|crisis|988|help)\b/.test(lower)
+    || /\b(emergency number|emergency line|crisis line|call 988|dial 988|need emergency help)\b/.test(lower);
+}
+
+function detectDoctorOutcome(text: string) {
+  const lower = text.toLowerCase();
+  return /\b(doctor|clinician|nurse|clinic|hospital)\b.*\b(said|told me|diagnosed|prescribed|gave me|recommended)\b/.test(lower)
+    || /\b(after|from) my (doctor|clinic|hospital) visit\b/.test(lower);
+}
+
+function shouldOfferDoctorReferral(reply: string, urgency?: "normal" | "monitor" | "urgent") {
+  const lower = reply.toLowerCase();
+  return urgency === "urgent"
+    || /\b(see|contact|speak with|talk to|visit|go to|check with)\b.{0,32}\b(doctor|clinician|clinic|urgent care|medical care|health professional)\b/.test(lower)
+    || /\b(get tested promptly|seek urgent|urgent medical help|medical help now)\b/.test(lower);
+}
+
+async function loadEmergencyInfo(): Promise<{ contactName?: string; contactPhone?: string } | null> {
+  try {
+    const cached = await SecureStore.getItemAsync(EMERGENCY_INFO_KEY);
+    return cached ? JSON.parse(cached) : null;
+  } catch {
+    return null;
+  }
 }
 
 function QuickReplyPanel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -690,6 +893,8 @@ const styles = StyleSheet.create({
   quickReplyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   quickReplyButton: { backgroundColor: colors.primaryDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   quickReplyText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
+  quickReplySecondary: { backgroundColor: colors.bg, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 12, paddingVertical: 8 },
+  quickReplySecondaryText: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
   composer: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 18 : 12, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   recordingBanner: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingBottom: 8 },
   recordingDotWrap: { width: 18, height: 18, alignItems: "center", justifyContent: "center", marginRight: 6 },

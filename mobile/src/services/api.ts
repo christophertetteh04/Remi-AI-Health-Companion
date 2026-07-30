@@ -221,7 +221,7 @@ export async function updateMedication(
   return res.json();
 }
 
-export async function submitVitalsReading(reading: { systolic: number; diastolic: number; glucose?: number }) {
+export async function submitVitalsReading(reading: { systolic: number; diastolic: number; glucose?: number; wellbeing?: number; pregnancyMode?: boolean }) {
   const res = await fetch(`${API_BASE_URL}/vitals`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
@@ -229,6 +229,31 @@ export async function submitVitalsReading(reading: { systolic: number; diastolic
   });
   if (!res.ok) throw new Error(`Vitals request failed: ${res.status}`);
   return res.json(); // includes { tier: 'normal'|'monitor'|'urgent', message }
+}
+
+export async function getVitalsReadings() {
+  const res = await fetch(`${API_BASE_URL}/vitals`, { headers: await authHeader() });
+  if (!res.ok) throw new Error(`Vitals list request failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateVitalsReading(id: string, reading: { systolic: number; diastolic: number; glucose?: number; wellbeing?: number; pregnancyMode?: boolean }) {
+  const res = await fetch(`${API_BASE_URL}/vitals/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify(reading),
+  });
+  if (!res.ok) throw new Error(`Vitals update failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteVitalsReading(id: string) {
+  const res = await fetch(`${API_BASE_URL}/vitals/${id}`, {
+    method: "DELETE",
+    headers: await authHeader(),
+  });
+  if (!res.ok) throw new Error(`Vitals delete failed: ${res.status}`);
+  return res.json();
 }
 
 export async function getUnifiedTimeline(offset = 0, limit = 30) {

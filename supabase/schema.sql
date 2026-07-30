@@ -71,6 +71,8 @@ create table if not exists medications (
   name text not null,
   dose text,
   frequency text,
+  duration text,
+  medication_explanation text,
   time_of_day text,
   source text default 'manual', -- 'manual' | 'ocr' | 'chat'
   conversation_ref text,
@@ -91,6 +93,8 @@ create table if not exists vitals_readings (
   systolic int,
   diastolic int,
   glucose numeric,
+  wellbeing int,
+  pregnancy_mode boolean default false,
   tier text check (tier in ('normal','monitor','urgent')),
   created_at timestamptz default now()
 );
@@ -246,6 +250,9 @@ create policy "Users can manage own medical documents" on medical_documents
 alter table symptom_episodes add column if not exists source text default 'direct_upload';
 alter table symptom_episodes add column if not exists conversation_ref text;
 alter table medications add column if not exists conversation_ref text;
+alter table medications add column if not exists duration text;
+alter table medications add column if not exists medication_explanation text;
+alter table medications add column if not exists prescription_image_url text;
 alter table lab_reports add column if not exists source text default 'direct_upload';
 alter table lab_reports add column if not exists conversation_ref text;
 alter table sample_photos add column if not exists source text default 'direct_upload';

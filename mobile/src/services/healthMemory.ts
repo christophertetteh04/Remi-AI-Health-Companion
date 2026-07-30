@@ -8,7 +8,7 @@ export async function buildHealthMemoryContext() {
   ]);
 
   return {
-    recentActivities: recentActivities.slice(0, 12),
-    schedules: schedules.slice(0, 12),
+    recentActivities: recentActivities.slice(0, 30),
+    schedules: schedules.slice(0, 20),
   };
 }

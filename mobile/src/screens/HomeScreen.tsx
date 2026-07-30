@@ -127,6 +127,36 @@ export default function HomeScreen({ navigation }: any) {
     return ClipboardList;
   };
 
+  const activityMeta = (type: RecentActivity["type"]) => {
+    if (type === "chat") return { color: colors.primary, bg: colors.primaryDim, label: "Chat" };
+    if (type === "lab") return { color: colors.peach, bg: colors.peachDim, label: "Lab" };
+    if (type === "vitals") return { color: colors.mint, bg: colors.mintDim, label: "Vitals" };
+    if (type === "medication") return { color: colors.primary, bg: colors.primaryDim, label: "Meds" };
+    if (type === "safety") return { color: colors.urgent, bg: colors.urgentDim, label: "Safety" };
+    return { color: colors.inkSoft, bg: colors.surfaceRaised, label: "Update" };
+  };
+
+  const formatActivityTime = (createdAt: string) => {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return "Recent";
+    const today = new Date();
+    const sameDay = date.toDateString() === today.toDateString();
+    if (sameDay) {
+      return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    }
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  };
+
+  const scheduleMeta = (route?: string, title?: string) => {
+    if (/\bdoctor\b/i.test(title || "")) return { color: colors.urgent, bg: colors.urgentDim, label: "Doctor" };
+    if (route === "Meds") return { color: colors.primary, bg: colors.primaryDim, label: "Medication" };
+    if (route === "LabUpload") return { color: colors.peach, bg: colors.peachDim, label: "Lab" };
+    if (route === "HydrationReminderSettings") return { color: colors.mint, bg: colors.mintDim, label: "Hydration" };
+    if (route === "PreventiveReminderSettings") return { color: colors.primary, bg: colors.primaryDim, label: "Preventive" };
+    if (route === "HealthReminderSettings") return { color: colors.mint, bg: colors.mintDim, label: "Health" };
+    return { color: colors.inkSoft, bg: colors.surfaceRaised, label: "Plan" };
+  };
+
   const signOut = () => {
     Alert.alert("Sign out?", "You can sign back in any time.", [
       { text: "Cancel", style: "cancel" },
@@ -270,57 +300,99 @@ export default function HomeScreen({ navigation }: any) {
           },
         ]}
       >
-        <Text style={styles.sectionLabel}>REMINDERS</Text>
+        <View style={styles.reminderHeader}>
+          <View>
+            <Text style={styles.sectionLabel}>REMINDERS</Text>
+            <Text style={styles.reminderHeaderSub}>Upcoming care nudges and saved plan dates</Text>
+          </View>
+          {schedules.length > 0 ? (
+            <View style={styles.reminderCountBadge}>
+              <CalendarCheck size={12} color={colors.mint} />
+              <Text style={styles.reminderCountText}>{schedules.length}</Text>
+            </View>
+          ) : null}
+        </View>
         <Card style={styles.scheduleCard}>
           {schedules.length === 0 ? (
-            <View style={styles.emptyActivity}>
-              <View style={styles.emptyIcon}><CalendarDays size={18} color={colors.primary} /></View>
+            <View style={styles.emptyReminderActivity}>
+              <View style={styles.emptyReminderIcon}><CalendarDays size={22} color={colors.mint} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.activityTitle}>No schedules yet</Text>
-                <Text style={styles.activitySub}>Saved condition plan reminders and follow-up dates will appear here.</Text>
+                <Text style={styles.emptyReminderTitle}>No reminders yet</Text>
+                <Text style={styles.emptyReminderSub}>Saved condition plans, medication times, hydration, and follow-up dates will appear here.</Text>
               </View>
             </View>
           ) : (
-            schedules.slice(0, 4).map((item, index) => (
-              <Pressable
-                key={item.id}
-                onPress={() => item.route && navigation.navigate(item.route)}
-                style={[styles.activityRow, index === Math.min(schedules.length, 4) - 1 && { borderBottomWidth: 0 }]}
-              >
-                <View style={styles.scheduleIcon}><CalendarCheck size={15} color={colors.mint} /></View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.activityTitle}>{item.title}</Text>
-                  <Text style={styles.activitySub}>{item.detail}</Text>
-                </View>
-                <ChevronRight size={15} color={colors.inkFaint} />
-              </Pressable>
-            ))
+            schedules.slice(0, 4).map((item) => {
+              const meta = scheduleMeta(item.route, item.title);
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => item.route && navigation.navigate(item.route)}
+                  style={({ pressed }) => [styles.reminderRow, pressed && styles.reminderRowPressed]}
+                >
+                  <View style={styles.reminderTimeline}>
+                    <View style={[styles.scheduleIcon, { backgroundColor: meta.bg }]}>
+                      <CalendarCheck size={17} color={meta.color} />
+                    </View>
+                  </View>
+                  <View style={styles.reminderBody}>
+                    <View style={styles.reminderTopLine}>
+                      <Text style={styles.reminderTitle} numberOfLines={1}>{item.title}</Text>
+                      <View style={[styles.reminderTypeChip, { backgroundColor: meta.bg }]}>
+                        <Text style={[styles.reminderTypeText, { color: meta.color }]}>{meta.label}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.reminderDetail} numberOfLines={2}>{item.detail}</Text>
+                  </View>
+                  <ChevronRight size={15} color={colors.inkFaint} />
+                </Pressable>
+              );
+            })
           )}
         </Card>
 
-        <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
+        <View style={styles.recentHeader}>
+          <View>
+            <Text style={styles.sectionLabel}>RECENT ACTIVITY</Text>
+            <Text style={styles.recentHeaderSub}>Your latest saved health updates</Text>
+          </View>
+          {activities.length > 0 ? (
+            <View style={styles.activityCountBadge}>
+              <Text style={styles.activityCountText}>{activities.length}</Text>
+            </View>
+          ) : null}
+        </View>
         <Card style={styles.activityCard}>
           {activities.length === 0 ? (
-            <View style={styles.emptyActivity}>
-              <View style={styles.emptyIcon}><ClipboardList size={18} color={colors.primary} /></View>
+            <View style={styles.emptyRecentActivity}>
+              <View style={styles.emptyRecentIcon}><ClipboardList size={22} color={colors.primary} /></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.activityTitle}>No activity yet</Text>
-                <Text style={styles.activitySub}>Conversations, lab uploads, vitals, and medication updates will appear here.</Text>
+                <Text style={styles.emptyRecentTitle}>No activity yet</Text>
+                <Text style={styles.emptyRecentSub}>Chat with Remi, log vitals, upload labs, or update medications to build your timeline.</Text>
               </View>
             </View>
           ) : (
-            previewActivities.map((item, index) => {
+            previewActivities.map((item) => {
               const Icon = activityIcon(item.type);
+              const meta = activityMeta(item.type);
               return (
                 <Pressable
-                  key={`${item.id}-${index}`}
+                  key={item.id}
                   onPress={() => navigation.navigate("ActivityDetail", { activityId: item.id })}
-                  style={[styles.activityRow, index === previewActivities.length - 1 && { borderBottomWidth: 0 }]}
+                  style={({ pressed }) => [styles.recentActivityRow, pressed && styles.recentActivityRowPressed]}
                 >
-                  <View style={styles.activityIcon}><Icon size={15} color={colors.primary} /></View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.activityTitle}>{item.title}</Text>
-                    <Text style={styles.activitySub}>{item.detail}</Text>
+                  <View style={[styles.recentActivityIcon, { backgroundColor: meta.bg }]}>
+                    <Icon size={17} color={meta.color} />
+                  </View>
+                  <View style={styles.recentActivityBody}>
+                    <View style={styles.recentActivityTopLine}>
+                      <Text style={styles.activityTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.activityDate}>{formatActivityTime(item.createdAt)}</Text>
+                    </View>
+                    <Text style={styles.activitySub} numberOfLines={2}>{item.detail}</Text>
+                    <View style={[styles.activityTypeChip, { backgroundColor: meta.bg }]}>
+                      <Text style={[styles.activityTypeText, { color: meta.color }]}>{meta.label}</Text>
+                    </View>
                   </View>
                   <ChevronRight size={15} color={colors.inkFaint} />
                 </Pressable>
@@ -451,16 +523,49 @@ const styles = StyleSheet.create({
   quickSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 2 },
   sectionWrap: { paddingHorizontal: spacing.xl, marginTop: 22 },
   sectionLabel: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 10 },
-  scheduleCard: { paddingVertical: 4, paddingHorizontal: 14, marginBottom: 18 },
-  scheduleIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.mintDim, alignItems: "center", justifyContent: "center" },
-  activityCard: { paddingVertical: 4, paddingHorizontal: 14 },
+  reminderHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 10 },
+  reminderHeaderSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: -4, maxWidth: 230 },
+  reminderCountBadge: { minWidth: 42, height: 28, borderRadius: 999, backgroundColor: colors.mintDim, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(4,120,87,0.22)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 10 },
+  reminderCountText: { color: colors.mint, fontFamily: fonts.bodySemiBold, fontSize: 12 },
+  scheduleCard: { padding: 10, marginBottom: 18, backgroundColor: colors.surface, borderColor: "rgba(216,225,234,0.92)" },
+  scheduleIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  emptyReminderActivity: { flexDirection: "row", alignItems: "center", backgroundColor: colors.bg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 14 },
+  emptyReminderIcon: { width: 46, height: 46, borderRadius: 16, backgroundColor: colors.mintDim, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  emptyReminderTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 14 },
+  emptyReminderSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 3, lineHeight: 17 },
+  reminderRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.bg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(216,225,234,0.88)", padding: 12, marginBottom: 9 },
+  reminderRowPressed: { transform: [{ scale: 0.992 }], backgroundColor: colors.surfaceRaised },
+  reminderTimeline: { marginRight: 11 },
+  reminderBody: { flex: 1, minWidth: 0, marginRight: 8 },
+  reminderTopLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  reminderTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.2, flex: 1 },
+  reminderDetail: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.3, marginTop: 4, lineHeight: 16 },
+  reminderTypeChip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  reminderTypeText: { fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
+  recentHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 10 },
+  recentHeaderSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: -4 },
+  activityCountBadge: { minWidth: 34, height: 28, borderRadius: 999, backgroundColor: colors.primaryDim, borderWidth: StyleSheet.hairlineWidth, borderColor: "#BFD4FF", alignItems: "center", justifyContent: "center", paddingHorizontal: 10 },
+  activityCountText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 12 },
+  activityCard: { padding: 10, backgroundColor: colors.surface, borderColor: "rgba(216,225,234,0.92)" },
   emptyActivity: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
   emptyIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 11 },
+  emptyRecentActivity: { flexDirection: "row", alignItems: "center", backgroundColor: colors.bg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 14 },
+  emptyRecentIcon: { width: 46, height: 46, borderRadius: 16, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  emptyRecentTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 14 },
+  emptyRecentSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 3, lineHeight: 17 },
   activityIcon: { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center" },
   activityRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
-  activityTitle: { color: colors.ink, fontFamily: fonts.body, fontSize: 13 },
-  activitySub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 2, lineHeight: 15 },
-  viewMoreButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primaryDim, borderRadius: 999, marginTop: 10 },
+  recentActivityRow: { flexDirection: "row", alignItems: "center", backgroundColor: colors.bg, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(216,225,234,0.88)", padding: 12, marginBottom: 9 },
+  recentActivityRowPressed: { transform: [{ scale: 0.992 }], backgroundColor: colors.surfaceRaised },
+  recentActivityIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", marginRight: 11 },
+  recentActivityBody: { flex: 1, minWidth: 0, marginRight: 8 },
+  recentActivityTopLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  activityTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.2, flex: 1 },
+  activityDate: { color: colors.inkFaint, fontFamily: fonts.bodyMedium, fontSize: 10.5 },
+  activitySub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.3, marginTop: 3, lineHeight: 16 },
+  activityTypeChip: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, marginTop: 8 },
+  activityTypeText: { fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
+  viewMoreButton: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.primaryDim, borderWidth: StyleSheet.hairlineWidth, borderColor: "#BFD4FF", borderRadius: 999, marginTop: 10 },
   viewMoreText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 13 },
   shortcutPanel: { gap: 9, paddingRight: 2 },
   shortcutRow: { width: 92, minHeight: 82, backgroundColor: colors.surface, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 10, alignItems: "center", justifyContent: "center" },

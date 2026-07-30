@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, TextInput, View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, fonts } from "../theme/tokens";
 import { Card, PrimaryButton } from "../components/UI";
-import { Pill, Check, Bell, ShieldCheck, Plus, Clock3, X, Save } from "lucide-react-native";
+import { Pill, Check, Bell, ShieldCheck, Plus, Clock3, X, Save, Sparkles } from "lucide-react-native";
 import { getMedications, markMedicationTaken, updateMedication } from "../services/api";
 import { addRecentActivity } from "../services/recentActivity";
 import { navigationRef } from "../navigation/navigationRef";
 import { scheduleMedicationReminder } from "../services/notifications";
+import { showRemiToast } from "../components/RemiToast";
 
 type Medication = {
   id: string;
@@ -21,7 +23,13 @@ type Medication = {
   source?: string;
   conversation_ref?: string | null;
   created_at?: string;
+  medication_explanation?: string | null;
+  medicationExplanation?: string | null;
 };
+
+type StreakEntry = { streak: number; lastTakenDate: string };
+type StreakMap = Record<string, StreakEntry>;
+const ADHERENCE_STREAK_KEY = "remi_medication_adherence_streaks";
 
 export default function MedsScreen({ navigation }: any) {
   const [meds, setMeds] = useState<Medication[]>([]);
@@ -29,6 +37,7 @@ export default function MedsScreen({ navigation }: any) {
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [editDraft, setEditDraft] = useState({ name: "", dose: "", frequency: "", time: "08:00" });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [streaks, setStreaks] = useState<StreakMap>({});
 
   const loadMeds = React.useCallback(() => {
     setLoading(true);
@@ -40,6 +49,7 @@ export default function MedsScreen({ navigation }: any) {
 
   useEffect(() => {
     loadMeds();
+    loadAdherenceStreaks().then(setStreaks);
   }, [loadMeds]);
 
   useFocusEffect(
@@ -50,11 +60,21 @@ export default function MedsScreen({ navigation }: any) {
 
   const markTaken = async (id: string) => {
     const med = meds.find((m) => m.id === id);
+    if (med?.takenToday) {
+      showRemiToast("Already logged", "This dose is already marked as taken today.", "bottom");
+      return;
+    }
+    const nextStreaks = updateStreak(streaks, id);
+    const streak = nextStreaks[id]?.streak || 1;
+    setStreaks(nextStreaks);
+    await saveAdherenceStreaks(nextStreaks);
     setMeds((prev) => prev.map((m) => (m.id === id ? { ...m, takenToday: true } : m)));
+    const reinforcement = adherenceMessage(streak);
+    showRemiToast("Medication logged", reinforcement, "bottom");
     await addRecentActivity({
       type: "medication",
-      title: "Medication marked taken",
-      detail: med ? `${med.name} ${med.dose}`.trim() : "Dose marked complete",
+      title: "Adherence check-in",
+      detail: med ? `${med.name} ${med.dose}`.trim() + ` taken. ${reinforcement}` : `Dose marked complete. ${reinforcement}`,
       route: "Meds",
     });
     try {
@@ -103,7 +123,11 @@ export default function MedsScreen({ navigation }: any) {
         hour: Number.isFinite(hour) ? hour : 8,
         minute: Number.isFinite(minute) ? minute : 0,
       });
-      await scheduleMedicationReminder(editingMed.id, Number.isFinite(hour) ? hour : 8, Number.isFinite(minute) ? minute : 0);
+      await scheduleMedicationReminder(editingMed.id, Number.isFinite(hour) ? hour : 8, Number.isFinite(minute) ? minute : 0, {
+        name: editDraft.name.trim(),
+        dose: editDraft.dose.trim(),
+        purpose: medPurpose(editingMed),
+      });
       setMeds((prev) => prev.map((med) => (med.id === editingMed.id ? { ...med, ...saved, time: saved.time || saved.time_of_day || editDraft.time } : med)));
       await addRecentActivity({
         type: "medication",
@@ -140,6 +164,7 @@ export default function MedsScreen({ navigation }: any) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.summaryLabel}>Today</Text>
                 <Text style={styles.summaryTitle}>{loading ? "Checking reminders..." : nextMed ? `Next: ${nextMed.name}` : "No doses pending"}</Text>
+                <Text style={styles.summarySupport}>{bestStreak(streaks) > 0 ? adherenceMessage(bestStreak(streaks)) : "Log doses to build your adherence streak."}</Text>
               </View>
             </View>
             <View style={styles.summaryStats}>
@@ -186,6 +211,11 @@ export default function MedsScreen({ navigation }: any) {
                 </View>
               </View>
               {m.note ? <Text style={styles.medNote}>{m.note}</Text> : null}
+              {medPurpose(m) ? <Text style={styles.medPurpose}>What this is for: {medPurpose(m)}</Text> : null}
+              <View style={styles.streakRow}>
+                <Sparkles size={13} color={colors.peach} />
+                <Text style={styles.streakText}>{streakLabel(streaks[m.id]?.streak || 0)}</Text>
+              </View>
               <Pressable onPress={(event) => { event.stopPropagation(); markTaken(m.id); }} style={[styles.takenBtn, m.takenToday && styles.takenBtnDone]}>
                 <Check size={12} color={m.takenToday ? colors.mint : colors.inkSoft} />
                 <Text style={[styles.takenText, m.takenToday && { color: colors.mint }]}>
@@ -255,6 +285,52 @@ function SourceBadge({ date }: { date?: string | null }) {
   return <Text style={styles.sourceBadge}>From your check-in on {label}</Text>;
 }
 
+function medPurpose(med?: Medication | null) {
+  return (med?.medication_explanation || med?.medicationExplanation || med?.note || "").trim();
+}
+
+async function loadAdherenceStreaks(): Promise<StreakMap> {
+  try {
+    const stored = await AsyncStorage.getItem(ADHERENCE_STREAK_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveAdherenceStreaks(streaks: StreakMap) {
+  await AsyncStorage.setItem(ADHERENCE_STREAK_KEY, JSON.stringify(streaks));
+}
+
+function updateStreak(streaks: StreakMap, medicationId: string): StreakMap {
+  const today = dateKey(new Date());
+  const yesterday = dateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const current = streaks[medicationId];
+  if (current?.lastTakenDate === today) return streaks;
+  const streak = current?.lastTakenDate === yesterday ? current.streak + 1 : 1;
+  return { ...streaks, [medicationId]: { streak, lastTakenDate: today } };
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function bestStreak(streaks: StreakMap) {
+  return Object.values(streaks).reduce((max, item) => Math.max(max, item.streak || 0), 0);
+}
+
+function streakLabel(streak: number) {
+  if (streak <= 0) return "Start a streak by marking this as taken.";
+  if (streak === 1) return "1-day adherence streak started.";
+  return `${streak}-day adherence streak. Nice steady work.`;
+}
+
+function adherenceMessage(streak: number) {
+  if (streak <= 1) return "Good start. One dose at a time.";
+  if (streak < 7) return `${streak}-day streak. You're building a steady rhythm.`;
+  return `${streak}-day streak. Strong consistency.`;
+}
+
 const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
@@ -292,6 +368,7 @@ const styles = StyleSheet.create({
   summaryIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 12 },
   summaryLabel: { color: colors.inkFaint, fontFamily: fonts.bodySemiBold, fontSize: 11 },
   summaryTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 16, marginTop: 3 },
+  summarySupport: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12, marginTop: 4 },
   summaryStats: { flexDirection: "row", backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 12 },
   summaryStat: { flex: 1, alignItems: "center" },
   summaryNumber: { color: colors.ink, fontFamily: fonts.display, fontSize: 23 },
@@ -314,6 +391,9 @@ const styles = StyleSheet.create({
   timePill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceRaised, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
   medTime: { color: colors.inkSoft, fontFamily: fonts.mono, fontSize: 11 },
   medNote: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginTop: 12 },
+  medPurpose: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginTop: 10, backgroundColor: colors.bg, borderRadius: 10, padding: 10 },
+  streakRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 11 },
+  streakText: { color: colors.peach, fontFamily: fonts.bodySemiBold, fontSize: 11.5, flex: 1 },
   takenBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceRaised, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9, marginTop: 14, alignSelf: "stretch" },
   takenBtnDone: { backgroundColor: colors.mintDim },
   takenText: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 12, marginLeft: 7 },

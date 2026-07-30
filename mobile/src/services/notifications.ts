@@ -32,6 +32,7 @@ export const DEFAULT_HEALTH_REMINDER_TYPES = ["vitals", "checkin"];
 export const DEFAULT_HEALTH_REMINDER_DAY = 1;
 export const DEFAULT_HEALTH_REMINDER_TIME = "09:00";
 export const WEEKLY_BRIEF_REMINDER_ID_KEY = "remi_weekly_brief_reminder_id";
+export const DOCTOR_VISIT_NOTIFICATION_IDS_KEY = "remi_doctor_visit_notification_ids";
 
 async function getNotifications() {
   if (isExpoGo) return null;
@@ -87,7 +88,12 @@ export async function requestNotificationPermissions() {
   return true;
 }
 
-export async function scheduleMedicationReminder(medicationId: string, hour: number, minute: number) {
+export async function scheduleMedicationReminder(
+  medicationId: string,
+  hour: number,
+  minute: number,
+  details: { name?: string; dose?: string; purpose?: string } = {},
+) {
   const Notifications = await getNotifications();
   if (!Notifications) return null;
 
@@ -97,8 +103,8 @@ export async function scheduleMedicationReminder(medicationId: string, hour: num
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: "Remi reminder",
-      body: "You have a medication scheduled now.",
-      data: { type: "medication", medicationId },
+      body: medicationReminderBody(details),
+      data: { type: "medication", medicationId, medicationName: details.name || "", purpose: details.purpose || "" },
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
   });
@@ -108,6 +114,16 @@ export async function scheduleMedicationReminder(medicationId: string, hour: num
   await SecureStore.setItemAsync("remi_reminder_map", JSON.stringify(map));
   await trackEvent("medication_reminder_scheduled");
   return id;
+}
+
+function medicationReminderBody(details: { name?: string; dose?: string; purpose?: string }) {
+  const name = details.name?.trim();
+  const dose = details.dose?.trim();
+  const purpose = details.purpose?.trim();
+  if (name && purpose) return `Time for ${name}: ${purpose}`;
+  if (name && dose) return `Time for ${name} ${dose}.`;
+  if (name) return `Time for ${name}.`;
+  return "You have a medication scheduled now.";
 }
 
 export async function cancelMedicationReminder(medicationId: string) {
@@ -387,6 +403,74 @@ export async function schedulePlanDateReminder(reminderKey: string, dateISO: str
   });
   await SecureStore.setItemAsync(reminderKey, id);
   return id;
+}
+
+export async function scheduleDoctorVisitNotifications(visit: {
+  id: string;
+  visitDate: string;
+  concern: string;
+  urgency: "normal" | "monitor" | "urgent";
+  bodyLocation?: string;
+  prepSummary?: string;
+}) {
+  const Notifications = await getNotifications();
+  if (!Notifications) return null;
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return null;
+
+  const visitDate = new Date(visit.visitDate);
+  if (Number.isNaN(visitDate.getTime())) return null;
+
+  const existingRaw = await SecureStore.getItemAsync(DOCTOR_VISIT_NOTIFICATION_IDS_KEY);
+  const existing = existingRaw ? JSON.parse(existingRaw) : {};
+  const previousIds: string[] = existing[visit.id] || [];
+  await Promise.all(previousIds.map((id) => Notifications.cancelScheduledNotificationAsync(id)));
+
+  const prepDate = new Date(visitDate);
+  prepDate.setDate(prepDate.getDate() - 1);
+  prepDate.setHours(18, 0, 0, 0);
+  if (prepDate.getTime() <= Date.now()) {
+    prepDate.setTime(Date.now() + 60_000);
+  }
+
+  const followUpDate = new Date(visitDate);
+  followUpDate.setDate(followUpDate.getDate() + 1);
+  followUpDate.setHours(10, 0, 0, 0);
+
+  const reminderDate = new Date(visitDate);
+  if (reminderDate.getTime() <= Date.now()) {
+    reminderDate.setTime(Date.now() + 90_000);
+  }
+
+  const prepId = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Remi doctor visit prep",
+      body: `Your visit prep summary is ready${visit.bodyLocation ? ` for ${visit.bodyLocation}` : ""}.`,
+      data: { type: "doctor_visit_prep", visitId: visit.id, urgency: visit.urgency },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prepDate },
+  });
+  const visitId = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Remi doctor visit",
+      body: `Doctor visit reminder: ${visit.concern || "bring your Remi notes"}.`,
+      data: { type: "doctor_visit", visitId: visit.id, urgency: visit.urgency },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
+  });
+  const followUpId = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Remi follow-up",
+      body: "How did it go? What did the doctor say?",
+      data: { type: "doctor_visit_followup", visitId: visit.id, urgency: visit.urgency },
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: followUpDate },
+  });
+
+  existing[visit.id] = [prepId, visitId, followUpId];
+  await SecureStore.setItemAsync(DOCTOR_VISIT_NOTIFICATION_IDS_KEY, JSON.stringify(existing));
+  return [prepId, visitId, followUpId];
 }
 
 export async function scheduleDentalVisionReminder() {

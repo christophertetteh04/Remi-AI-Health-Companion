@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { getDoctorVisitPlans } from "./doctorVisits";
 
 export type SavedConditionPlan = {
   condition: string;
@@ -156,7 +157,8 @@ export async function getUserSchedules(): Promise<UserSchedule[]> {
     })),
   );
   const preferenceSchedules = await getPreferenceSchedules();
-  return [...planSchedules, ...preferenceSchedules].slice(0, 12);
+  const doctorVisitSchedules = await getDoctorVisitSchedules();
+  return [...doctorVisitSchedules, ...planSchedules, ...preferenceSchedules].slice(0, 12);
 }
 
 function displayValue(value: unknown) {
@@ -206,6 +208,23 @@ async function getPreferenceSchedules(): Promise<UserSchedule[]> {
   }
 
   return schedules;
+}
+
+async function getDoctorVisitSchedules(): Promise<UserSchedule[]> {
+  const visits = await getDoctorVisitPlans();
+  return visits.map((visit) => ({
+    id: `doctor-visit-${visit.id}`,
+    title: visit.urgency === "urgent" ? "Urgent doctor visit" : "Doctor visit reminder",
+    detail: `${formatVisitDate(visit.visitDate)}${visit.bodyLocation ? ` - ${visit.bodyLocation}` : ""}`,
+    route: "Chat",
+    condition: visit.urgency,
+  }));
+}
+
+function formatVisitDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date to confirm";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function parseArray(value: string | null): string[] {

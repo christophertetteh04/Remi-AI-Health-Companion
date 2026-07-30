@@ -20,6 +20,8 @@ const CRISIS_KEYWORDS = [
   "kill myself", "end my life", "hurt myself", "suicide", "want to die",
 ];
 
+const DANGER_SIGN_PATTERN = /\b(chest pain|pressure in (my )?chest|trouble breathing|shortness of breath|can't breathe|cannot breathe|fainting|passed out|confusion|severe pain|worst headache|sudden weakness|face droop|slurred speech|seizure|heavy bleeding|bleeding heavily|coughing blood|vomiting blood|blood in stool|black stool|stiff neck|blue lips|severe allergic|swollen tongue|suicidal|self harm|pregnant.*bleeding|pregnancy.*bleeding|severe pelvic pain|testicular pain|high fever|fever.*stiff neck)\b/i;
+
 const SYSTEM_PROMPT = `
 You are Remi, a daily health companion. You are NOT a doctor and must
 never diagnose a condition or name a likely condition. You:
@@ -148,6 +150,14 @@ export class CheckinsService {
       parsed = fallbackCheckinReply(message, Boolean(regionalPatternNote), topic, history.length, memoryContext);
     }
 
+    if (DANGER_SIGN_PATTERN.test(message)) {
+      parsed = {
+        ...parsed,
+        urgency: "urgent",
+        reply: ensureUrgentCareRecommendation(parsed.reply),
+      };
+    }
+
     return { ...parsed, crisisDetected: false };
   }
 
@@ -245,7 +255,7 @@ function fallbackCheckinReply(
   const lower = message.toLowerCase();
   const seed = message.length + historyLength;
   const shortDescription = lower.trim().split(/\s+/).length <= 5;
-  const urgentPattern = /\b(chest pain|trouble breathing|shortness of breath|fainting|confusion|severe pain|heavy bleeding|seizure)\b/.test(lower);
+  const urgentPattern = DANGER_SIGN_PATTERN.test(lower);
   if (/\b(weekly brief|weekly summary|health brief|summarize my health|what did i track)\b/.test(lower)) {
     return { urgency: "normal", reply: fallbackWeeklyBrief(memoryContext) };
   }
@@ -286,6 +296,11 @@ function fallbackCheckinReply(
     urgency: "normal",
     reply: fallbackConversationReply(shortDescription, historyLength, message),
   };
+}
+
+function ensureUrgentCareRecommendation(reply: string) {
+  if (/\b(urgent|emergency|medical help now|urgent care|doctor promptly)\b/i.test(reply)) return reply;
+  return `${reply} Please seek urgent medical care now, especially if this is new, severe, or getting worse.`;
 }
 
 function fallbackConversationReply(shortDescription: boolean, historyLength: number, message: string) {
