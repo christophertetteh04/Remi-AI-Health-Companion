@@ -179,12 +179,22 @@
           </div>
           <div id="logs" class="empty">Not loaded yet.</div>
         </section>
+
+        <section class="panel" style="grid-column: 1 / -1">
+          <div class="panel-head">
+            <div>
+              <h2>Provider health</h2>
+              <div class="panel-note">Configured AI provider status and recent failovers.</div>
+            </div>
+          </div>
+          <div id="providerHealth" class="empty">Not loaded yet.</div>
+        </section>
       </div>
     </section>
   </main>
 
 <script>
-const state = { flagged: null, users: null, logs: null };
+const state = { flagged: null, users: null, logs: null, providerHealth: null };
 
 document.getElementById('apiUrl').value = sessionStorage.getItem('remiAdminApiUrl') || 'http://localhost:3000';
 
@@ -206,14 +216,16 @@ async function loadAll() {
 
   try {
     sessionStorage.setItem('remiAdminApiUrl', document.getElementById('apiUrl').value);
-    const [flagged, users, logs] = await Promise.all([
+    const [flagged, users, logs, providerHealth] = await Promise.all([
       call('/admin/flagged'),
       call('/admin/users'),
       call('/admin/access-logs'),
+      call('/admin/provider-incidents'),
     ]);
     state.flagged = flagged;
     state.users = users || [];
     state.logs = logs || [];
+    state.providerHealth = providerHealth || { providers: [], incidents: [] };
     renderAll();
     document.getElementById('dashboard').classList.add('active');
   } catch (e) {
@@ -234,6 +246,7 @@ function renderAll() {
   document.getElementById('flagged').innerHTML = renderFlagged(urgentRows);
   document.getElementById('users').innerHTML = renderUsers(state.users);
   document.getElementById('logs').innerHTML = renderLogs(state.logs);
+  document.getElementById('providerHealth').innerHTML = renderProviderHealth(state.providerHealth);
 }
 
 function urgentRowsFrom(data) {
@@ -263,6 +276,22 @@ function renderLogs(logs) {
   return '<table><tr><th>Resource</th><th>Action</th><th>Actor</th><th>When</th></tr>' +
     logs.map((l) => `<tr><td>${escapeHtml(l.resource)}</td><td>${escapeHtml(l.action)}</td><td>${escapeHtml(l.actor)}</td><td>${formatDate(l.created_at)}</td></tr>`).join('') +
     '</table>';
+}
+
+function renderProviderHealth(data) {
+  const providers = data?.providers || [];
+  const incidents = data?.incidents || [];
+  const providerTable = providers.length
+    ? '<table><tr><th>Provider</th><th>Status</th><th>Vision</th><th>Failures</th><th>Circuit</th></tr>' +
+      providers.map((p) => `<tr><td>${escapeHtml(p.provider)}</td><td><span class="type-pill">${escapeHtml(p.status)}</span></td><td>${p.supportsVision ? 'yes' : 'no'}</td><td>${p.consecutiveFailures || 0}</td><td>${p.circuitOpenUntil ? formatDate(p.circuitOpenUntil) : '—'}</td></tr>`).join('') +
+      '</table>'
+    : '<p class="empty">No providers configured.</p>';
+  const incidentTable = incidents.length
+    ? '<table><tr><th>When</th><th>Provider</th><th>Service</th><th>Error</th></tr>' +
+      incidents.map((i) => `<tr><td>${formatDate(i.occurred_at)}</td><td>${escapeHtml(i.provider_name)}</td><td>${escapeHtml(i.service_name)}</td><td>${escapeHtml(i.error_message || '')}</td></tr>`).join('') +
+      '</table>'
+    : '<p class="empty">No provider failovers logged.</p>';
+  return providerTable + '<div class="panel-head" style="border-top:1px solid var(--line); margin-top:4px"><div><h2>Recent failovers</h2><div class="panel-note">Last 20 provider incidents.</div></div></div>' + incidentTable;
 }
 
 function clearSession() {

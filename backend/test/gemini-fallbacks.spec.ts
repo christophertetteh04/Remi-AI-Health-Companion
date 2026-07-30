@@ -12,12 +12,14 @@ const malformedGemini = () => ({
   })),
 });
 
-const truncatedJsonGemini = () => ({
-  getGenerativeModel: jest.fn(() => ({
-    generateContent: jest.fn().mockResolvedValue({
-      response: { text: () => '{"reply":"That sounds rough, please get checked if it keeps going' },
-    }),
-  })),
+const malformedAiProvider = () => ({
+  generateJSON: jest.fn().mockResolvedValue({ raw: "not-json" }),
+  generateJSONFromImage: jest.fn().mockResolvedValue({ raw: "not-json" }),
+});
+
+const truncatedJsonAiProvider = () => ({
+  generateJSON: jest.fn().mockResolvedValue({ raw: '{"reply":"That sounds rough, please get checked if it keeps going' }),
+  generateJSONFromImage: jest.fn().mockResolvedValue({ raw: "not-json" }),
 });
 
 const encryption = {
@@ -31,8 +33,7 @@ describe("Gemini malformed output fallbacks", () => {
   });
 
   it("CheckinsService falls back when Gemini returns malformed JSON", async () => {
-    const service = new CheckinsService();
-    (service as any).gemini = malformedGemini();
+    const service = new CheckinsService(malformedAiProvider() as any);
 
     const result = await service.handleMessage("I have a mild cough", []);
 
@@ -45,8 +46,7 @@ describe("Gemini malformed output fallbacks", () => {
   it("CheckinsService repairs a truncated reply JSON string when possible", async () => {
     const previousGeminiKey = process.env.GEMINI_API_KEY;
     process.env.GEMINI_API_KEY = "test-gemini-key";
-    const service = new CheckinsService();
-    (service as any).gemini = truncatedJsonGemini();
+    const service = new CheckinsService(truncatedJsonAiProvider() as any);
 
     const result = await service.handleMessage("I have a mild cough", []);
 
@@ -76,8 +76,7 @@ describe("Gemini malformed output fallbacks", () => {
       .fn()
       .mockReturnValueOnce(priorQuery)
       .mockReturnValueOnce(insertQuery);
-    const service = new LabsService({ client: { from } } as any, encryption as any);
-    (service as any).gemini = malformedGemini();
+    const service = new LabsService({ client: { from } } as any, encryption as any, malformedAiProvider() as any);
 
     const result = await service.interpretAndCompare("user-1", "base64-image", "image/jpeg");
 
@@ -100,8 +99,7 @@ describe("Gemini malformed output fallbacks", () => {
         from: jest.fn(() => insertQuery),
       },
     };
-    const service = new SamplePhotosService(supabase as any, encryption as any);
-    (service as any).gemini = malformedGemini();
+    const service = new SamplePhotosService(supabase as any, encryption as any, malformedAiProvider() as any);
 
     const result = await service.analyze("user-1", "base64-image", "urine");
 
@@ -126,8 +124,7 @@ describe("Gemini malformed output fallbacks", () => {
         from: jest.fn(() => insertQuery),
       },
     };
-    const service = new ImagingService(supabase as any, encryption as any);
-    (service as any).gemini = malformedGemini();
+    const service = new ImagingService(supabase as any, encryption as any, malformedAiProvider() as any);
 
     const result = await service.upload("user-1", "base64-image", "report_text", "X-ray");
 

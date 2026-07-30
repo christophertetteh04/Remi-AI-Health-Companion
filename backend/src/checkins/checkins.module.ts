@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AiProviderModule } from "../ai-provider/ai-provider.module";
 import { AuthGuard } from "../auth/auth.guard";
 import { AccessLogInterceptor } from "../common/access-log.interceptor";
 import { EncryptionService } from "../common/encryption.service";
@@ -13,6 +14,7 @@ import { CheckinsController } from "./checkins.controller";
 import { CheckinsService } from "./checkins.service";
 
 @Module({
+  imports: [AiProviderModule],
   controllers: [CheckinsController],
   providers: [CheckinsService, CheckinsMemoryService, DocumentClassifierService, LabsService, ImagingService, SymptomMediaService, SamplePhotosService, AuthGuard, AccessLogInterceptor, SupabaseService, EncryptionService],
 })

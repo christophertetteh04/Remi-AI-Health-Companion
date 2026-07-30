@@ -24,4 +24,9 @@ export class AdminController {
   async listAccessLogs() {
     return this.adminService.listAccessLogs();
   }
+
+  @Get("provider-incidents")
+  async listProviderIncidents() {
+    return this.adminService.listProviderIncidents();
+  }
 }

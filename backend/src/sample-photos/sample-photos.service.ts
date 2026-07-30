@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { AI_PROVIDER, AiProvider } from "../ai-provider/ai-provider.interface";
 import { SupabaseService } from "../common/supabase.service";
 import { EncryptionService } from "../common/encryption.service";
 import { randomUUID } from "crypto";
@@ -29,36 +29,25 @@ Respond ONLY with strict JSON, no other text:
 }
 `;
 
-const GEMINI_MODEL = "gemini-3.6-flash";
-
 @Injectable()
 export class SamplePhotosService {
-  private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
   constructor(
     private readonly supabase: SupabaseService,
     private readonly encryption: EncryptionService,
+    @Optional()
+    @Inject(AI_PROVIDER)
+    private readonly aiProvider?: AiProvider,
   ) {}
 
   async analyze(userId: string, imageBase64: string, sampleType: "urine" | "stool", metadata?: { source?: string; conversationRef?: string }) {
-    const model = this.gemini.getGenerativeModel({
-      model: GEMINI_MODEL,
-      systemInstruction: SYSTEM_PROMPT,
-      generationConfig: { maxOutputTokens: 400, responseMimeType: "application/json" },
-    });
-    const response = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
-            { text: `This is a ${sampleType} sample photo. Please describe it.` },
-          ],
-        },
-      ],
+    const response = await this.aiProvider!.generateJSONFromImage({
+      systemPrompt: SYSTEM_PROMPT,
+      prompt: `This is a ${sampleType} sample photo. Please describe it.`,
+      imageBase64,
+      mediaType: "image/jpeg",
     });
 
-    const text = response.response.text() || "{}";
+    const text = response.raw || "{}";
     let parsed: { description: string; dangerSignDetected: boolean; dangerSignNote: string | null };
     try {
       parsed = JSON.parse(text);

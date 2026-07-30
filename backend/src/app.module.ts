@@ -7,6 +7,7 @@ import { MedicationsModule } from "./medications/medications.module";
 import { VitalsModule } from "./vitals/vitals.module";
 import { PrescriptionsModule } from "./prescriptions/prescriptions.module";
 import { AdminModule } from "./admin/admin.module";
+import { AdminDashboardModule } from "./admin-dashboard/admin-dashboard.module";
 import { EmergencyInfoModule } from "./emergency-info/emergency-info.module";
 import { SpeechModule } from "./speech/speech.module";
 import { LabsModule } from "./labs/labs.module";
@@ -34,6 +35,7 @@ import { AccountDataModule } from "./account-data/account-data.module";
     MedicationsModule,
     VitalsModule,
     PrescriptionsModule,
+    AdminDashboardModule,
     AdminModule,
     EmergencyInfoModule,
     SpeechModule,

@@ -129,6 +129,14 @@ create table if not exists access_logs (
   created_at timestamptz default now()
 );
 
+create table if not exists provider_incidents (
+  id uuid primary key default gen_random_uuid(),
+  provider_name text not null,
+  service_name text not null,
+  error_message text,
+  occurred_at timestamptz default now()
+);
+
 create table if not exists sample_photos (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,

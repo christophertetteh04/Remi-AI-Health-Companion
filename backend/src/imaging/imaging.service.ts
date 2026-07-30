@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import { AI_PROVIDER, AiProvider } from "../ai-provider/ai-provider.interface";
 import { SupabaseService } from "../common/supabase.service";
 import { EncryptionService } from "../common/encryption.service";
 import { randomUUID } from "crypto";
@@ -15,15 +15,14 @@ Respond ONLY with strict JSON, no other text:
 { "explanation": string }
 `;
 
-const GEMINI_MODEL = "gemini-3.6-flash";
-
 @Injectable()
 export class ImagingService {
-  private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
   constructor(
     private readonly supabase: SupabaseService,
     private readonly encryption: EncryptionService,
+    @Optional()
+    @Inject(AI_PROVIDER)
+    private readonly aiProvider?: AiProvider,
   ) {}
 
   async listForUser(userId: string) {
@@ -59,23 +58,13 @@ export class ImagingService {
     }
 
     // report_text path — same explanation pattern as lab reports.
-    const model = this.gemini.getGenerativeModel({
-      model: GEMINI_MODEL,
-      systemInstruction: REPORT_SYSTEM_PROMPT,
-      generationConfig: { maxOutputTokens: 600, responseMimeType: "application/json" },
+    const response = await this.aiProvider!.generateJSONFromImage({
+      systemPrompt: REPORT_SYSTEM_PROMPT,
+      prompt: "Please explain this radiology report.",
+      imageBase64,
+      mediaType: "image/jpeg",
     });
-    const response = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
-            { text: "Please explain this radiology report." },
-          ],
-        },
-      ],
-    });
-    const text = response.response.text() || "{}";
+    const text = response.raw || "{}";
     let parsed: { explanation: string };
     try {
       parsed = JSON.parse(text);

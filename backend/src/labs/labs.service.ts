@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { AI_PROVIDER, AiProvider } from "../ai-provider/ai-provider.interface";
 import { SupabaseService } from "../common/supabase.service";
 import { EncryptionService } from "../common/encryption.service";
 import { PosthogService } from "../common/posthog.service";
@@ -20,15 +20,14 @@ Respond ONLY with strict JSON in this shape, no other text:
 }
 `;
 
-const GEMINI_MODEL = "gemini-3.6-flash";
-
 @Injectable()
 export class LabsService {
-  private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
   constructor(
     private readonly supabase: SupabaseService,
     private readonly encryption: EncryptionService,
+    @Optional()
+    @Inject(AI_PROVIDER)
+    private readonly aiProvider?: AiProvider,
     @Optional()
     private readonly posthog?: PosthogService,
   ) {}
@@ -63,24 +62,13 @@ export class LabsService {
   }
 
   async interpretAndCompare(userId: string, imageBase64: string, mediaType: string, analyticsEnabled = true, metadata?: { source?: string; conversationRef?: string }) {
-    const model = this.gemini.getGenerativeModel({
-      model: GEMINI_MODEL,
-      systemInstruction: SYSTEM_PROMPT,
-      generationConfig: { maxOutputTokens: 800, responseMimeType: "application/json" },
+    const response = await this.aiProvider!.generateJSONFromImage({
+      systemPrompt: SYSTEM_PROMPT,
+      prompt: "Please explain this lab report.",
+      imageBase64,
+      mediaType,
     });
-    const response = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: mediaType, data: imageBase64 } },
-            { text: "Please explain this lab report." },
-          ],
-        },
-      ],
-    });
-
-    const text = response.response.text() || "{}";
+    const text = response.raw || "{}";
     let parsed: { testType: string; explanation: string; keyResults: { name: string; value: string; flag: string }[] };
     try {
       parsed = JSON.parse(text);

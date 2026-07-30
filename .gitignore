@@ -6,13 +6,13 @@ mobile/node_modules/
 # Environment files with local secrets
 .env
 .env.*
-!.env.example
+.env.example
 backend/.env
 backend/.env.*
-!backend/.env.example
+backend/.env.example
 mobile/.env
 mobile/.env.*
-!mobile/.env.example
+mobile/.env.example
 
 # Build output
 dist/

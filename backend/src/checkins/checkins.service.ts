@@ -1,6 +1,6 @@
-import { Injectable, Optional } from "@nestjs/common";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "crypto";
+import { AI_PROVIDER, AiProvider } from "../ai-provider/ai-provider.interface";
 import { DocumentClassifierService, DocumentClassification } from "../document-classifier/document-classifier.service";
 import { EncryptionService } from "../common/encryption.service";
 import { SupabaseService } from "../common/supabase.service";
@@ -76,14 +76,12 @@ Respond ONLY with strict JSON in this shape, no other text:
 {"reply": string, "urgency": "normal" | "monitor" | "urgent"}
 `;
 
-const DEFAULT_GEMINI_MODEL = "gemini-flash-latest";
-const GEMINI_MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-3.5-flash", "gemini-3.6-flash"];
-
 @Injectable()
 export class CheckinsService {
-  private gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
   constructor(
+    @Optional()
+    @Inject(AI_PROVIDER)
+    private readonly aiProvider?: AiProvider,
     @Optional()
     private readonly classifier?: DocumentClassifierService,
     @Optional()
@@ -130,18 +128,20 @@ export class CheckinsService {
 
     let parsed: { reply: string; urgency: "normal" | "monitor" | "urgent" };
     try {
-      if (!process.env.GEMINI_API_KEY) {
+      if (!this.aiProvider) {
         parsed = fallbackCheckinReply(message, Boolean(regionalPatternNote), topic, history.length, memoryContext);
       } else {
-        const response = await this.generateWithAvailableModel([
-          ...history.map((h) => ({
-            role: h.from === "user" ? "user" : "model",
-            parts: [{ text: h.text }],
-          })),
-          { role: "user", parts: [{ text: message + regionalPatternNote + topicNote + memoryNote + styleNote }] },
-        ]);
-        const text = response.response.text() || "{}";
-        parsed = parseCheckinModelResponse(text);
+        const response = await this.aiProvider.generateJSON({
+          systemPrompt: SYSTEM_PROMPT,
+          messages: [
+            ...history.map((h) => ({
+              role: h.from === "user" ? "user" as const : "assistant" as const,
+              content: h.text,
+            })),
+            { role: "user", content: message + regionalPatternNote + topicNote + memoryNote + styleNote },
+          ],
+        });
+        parsed = parseCheckinModelResponse(response.raw);
       }
     } catch (error) {
       console.warn("Check-in model fallback used:", fallbackLogMessage(error));
@@ -149,28 +149,6 @@ export class CheckinsService {
     }
 
     return { ...parsed, crisisDetected: false };
-  }
-
-  private async generateWithAvailableModel(contents: { role: string; parts: { text: string }[] }[]) {
-    const configured = process.env.GEMINI_CHECKINS_MODEL || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-    const candidates = [...new Set([configured, ...GEMINI_MODEL_FALLBACKS])];
-    let lastError: unknown;
-
-    for (const modelName of candidates) {
-      try {
-        const model = this.gemini.getGenerativeModel({
-          model: modelName,
-          systemInstruction: SYSTEM_PROMPT,
-          generationConfig: { maxOutputTokens: 650, responseMimeType: "application/json" },
-        });
-        return await model.generateContent({ contents });
-      } catch (error) {
-        lastError = error;
-        if (!isMissingGeminiModelError(error)) throw error;
-      }
-    }
-
-    throw lastError;
   }
 
   async handleUpload(userId: string, dto: UploadCheckinDto, analyticsEnabled = true) {
@@ -239,17 +217,15 @@ export class CheckinsService {
   }
 
   private async explainGeneralMedicalDocument(imageBase64: string, mediaType: string) {
-    if (!process.env.GEMINI_API_KEY) return "Saved this document for your records. Please review it with your doctor.";
-    const model = this.gemini.getGenerativeModel({
-      model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
-      systemInstruction: "Explain general medical documents in plain language. Stay descriptive and non-diagnostic. Do not infer, diagnose, or recommend treatment changes. End by recommending the user discuss it with their doctor. Return strict JSON: {\"explanation\": string}",
-      generationConfig: { maxOutputTokens: 600, responseMimeType: "application/json" },
-    });
-    const response = await model.generateContent({
-      contents: [{ role: "user", parts: [{ inlineData: { mimeType: mediaType, data: imageBase64 } }, { text: "Explain this general medical document." }] }],
-    });
+    if (!this.aiProvider) return "Saved this document for your records. Please review it with your doctor.";
     try {
-      return JSON.parse(response.response.text() || "{}").explanation || "Saved this document for your records. Please review it with your doctor.";
+      const response = await this.aiProvider.generateJSONFromImage({
+        systemPrompt: "Explain general medical documents in plain language. Stay descriptive and non-diagnostic. Do not infer, diagnose, or recommend treatment changes. End by recommending the user discuss it with their doctor. Return strict JSON: {\"explanation\": string}",
+        prompt: "Explain this general medical document.",
+        imageBase64,
+        mediaType,
+      });
+      return JSON.parse(response.raw || "{}").explanation || "Saved this document for your records. Please review it with your doctor.";
     } catch {
       return "Saved this document for your records. Please review it with your doctor.";
     }
@@ -426,11 +402,6 @@ function fallbackWeeklyBrief(memoryContext?: {
 function clip(value: string, max = 180) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max - 3)}...` : text;
-}
-
-function isMissingGeminiModelError(error: unknown) {
-  const message = safeErrorMessage(error).toLowerCase();
-  return message.includes("404") && (message.includes("not found") || message.includes("not supported")) && message.includes("model");
 }
 
 function fallbackLogMessage(error: unknown) {

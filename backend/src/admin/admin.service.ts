@@ -1,9 +1,13 @@
 import { Injectable } from "@nestjs/common";
+import { AiProviderRouterService } from "../ai-provider/ai-provider-router.service";
 import { SupabaseService } from "../common/supabase.service";
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly aiProviderRouter: AiProviderRouterService,
+  ) {}
 
   async listUsers() {
     await this.logAccess("users", "list");
@@ -57,6 +61,20 @@ export class AdminService {
       .limit(200);
     if (error) throw error;
     return data;
+  }
+
+  async listProviderIncidents() {
+    await this.logAccess("provider_incidents", "list");
+    const { data, error } = await this.supabase.client
+      .from("provider_incidents")
+      .select("*")
+      .order("occurred_at", { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    return {
+      providers: this.aiProviderRouter.getProviderHealth(),
+      incidents: data || [],
+    };
   }
 
   // Every admin read of user health data gets logged — even reads by
