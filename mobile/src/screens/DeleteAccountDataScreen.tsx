@@ -17,11 +17,27 @@ const LOCAL_KEYS = [
   "remi_reminder_map",
   "remi_vitals_reminder_id",
   "remi_hydration_reminder_ids",
+  "remi_hydration_enabled",
+  "remi_hydration_times",
   "remi_dental_vision_reminder_id",
+  "remi_preventive_care_enabled",
+  "remi_preventive_care_types",
+  "remi_preventive_care_interval_months",
+  "remi_health_reminders_enabled",
+  "remi_health_reminder_types",
+  "remi_health_reminder_day",
+  "remi_health_reminder_time",
+  "remi_doctor_visits",
+  "remi_doctor_visit_notification_ids",
+  "remi_art_adherence_plan",
+  "remi_asthma_respiratory_plan",
+  "remi_kidney_function_plan",
+  "remi_cholesterol_tracking_plan",
+  "remi_thyroid_tracking_plan",
   "remi_lock_enabled",
 ];
 
-const ASYNC_STORAGE_KEYS = ["remi_recent_activity", "remi_chat_memory"];
+const ASYNC_STORAGE_KEYS = ["remi_recent_activity", "remi_chat_memory", "remi_cycle_detail_entries", "remi_medication_adherence_streaks"];
 
 export default function DeleteAccountDataScreen({ navigation }: any) {
   const [confirmation, setConfirmation] = useState("");

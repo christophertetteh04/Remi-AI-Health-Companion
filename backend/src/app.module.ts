@@ -22,6 +22,7 @@ import { LifestyleModule } from "./lifestyle/lifestyle.module";
 import { HealthSummaryModule } from "./health-summary/health-summary.module";
 import { PosthogModule } from "./common/posthog.module";
 import { AccountDataModule } from "./account-data/account-data.module";
+import { AccountBackupModule } from "./account-backup/account-backup.module";
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { AccountDataModule } from "./account-data/account-data.module";
     LifestyleModule,
     HealthSummaryModule,
     AccountDataModule,
+    AccountBackupModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

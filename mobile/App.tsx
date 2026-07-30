@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Alert, StatusBar } from "react-native";
+import { Alert, AppState, StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "react-native-toast-notifications";
 import * as SecureStore from "expo-secure-store";
@@ -11,7 +11,7 @@ import RemiAlertHost from "./src/components/RemiAlertHost";
 import RemiToast from "./src/components/RemiToast";
 import { useAppLock } from "./src/hooks/useAppLock";
 import { navigateFromNotification } from "./src/navigation/navigationRef";
-import { restoreAccountDataIfNeeded } from "./src/services/accountRecovery";
+import { backupAccountDataNow, restoreAccountDataIfNeeded } from "./src/services/accountRecovery";
 import { getFreshAccessToken } from "./src/services/api";
 import { installLargeTextScaling, loadDarkAppearanceEnabled, loadLargeTextEnabled, subscribeLargeText } from "./src/services/largeText";
 import { installRemiAlert } from "./src/services/remiAlert";
@@ -54,6 +54,7 @@ export default function App() {
       if (accessToken) {
         setHasSession(true);
         await restoreAccountDataIfNeeded();
+        backupAccountDataNow().catch(() => undefined);
       }
       const onboardedFlag = await SecureStore.getItemAsync("remi_onboarded");
       const isOnboarded = onboardedFlag === "true";
@@ -69,6 +70,12 @@ export default function App() {
     })();
 
     let removeNotificationListener = () => {};
+    const backupTimer = setInterval(() => {
+      backupAccountDataNow().catch(() => undefined);
+    }, 5 * 60 * 1000);
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "background" || state === "inactive") backupAccountDataNow().catch(() => undefined);
+    });
     import("./src/services/notifications").then(({ addNotificationResponseListener }) => {
       const sub = addNotificationResponseListener((data) => {
         if (data?.type === "medication") navigateFromNotification("Meds");
@@ -84,6 +91,8 @@ export default function App() {
       clearTimeout(splashTimer);
       unsubscribeLargeText();
       removeNotificationListener();
+      clearInterval(backupTimer);
+      appStateSub.remove();
     };
   }, []);
 

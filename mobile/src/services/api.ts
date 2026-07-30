@@ -192,6 +192,22 @@ export async function saveRecentActivitiesRemote(activities: RecentActivityPaylo
   return res.json();
 }
 
+export async function fetchAccountBackup() {
+  const res = await fetch(`${API_BASE_URL}/account-backup`, { headers: await authHeader() });
+  if (!res.ok) throw new Error(`Account backup request failed: ${res.status}`);
+  return res.json();
+}
+
+export async function saveAccountBackup(data: Record<string, unknown>, schemaVersion = "1") {
+  const res = await fetch(`${API_BASE_URL}/account-backup`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify({ data, schemaVersion }),
+  });
+  if (!res.ok) throw new Error(`Account backup save failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getMedications() {
   const res = await fetch(`${API_BASE_URL}/medications`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Medications request failed: ${res.status}`);

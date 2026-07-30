@@ -59,6 +59,18 @@ alter table recent_activities enable row level security;
 create policy "Users can manage own recent activities" on recent_activities
   for all using (user_id in (select id from users where auth_user_id = auth.uid()));
 
+create table if not exists account_backups (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete cascade unique,
+  encrypted_payload text not null,
+  schema_version text default '1',
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+alter table account_backups enable row level security;
+create policy "Users can manage own account backup" on account_backups
+  for all using (user_id in (select id from users where auth_user_id = auth.uid()));
+
 -- Run this once via the Supabase dashboard (Storage > New bucket),
 -- or via the CLI: keep it PRIVATE, not public, since these are
 -- symptom photos. Signed URLs (created in symptom-media.service.ts)
