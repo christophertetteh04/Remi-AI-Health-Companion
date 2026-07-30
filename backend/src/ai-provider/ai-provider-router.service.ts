@@ -19,10 +19,12 @@ type ProviderEntry = {
 
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_OPEN_MS = 5 * 60 * 1000;
+const ADMIN_ALERT_COOLDOWN_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class AiProviderRouterService implements AiProvider {
   private readonly circuits = new Map<ProviderName, { failures: number; openUntil: number; lastError?: string }>();
+  private readonly adminAlertedAt = new Map<string, number>();
 
   constructor(
     private readonly gemini: GeminiProviderService,
@@ -75,7 +77,8 @@ export class AiProviderRouterService implements AiProvider {
         return result;
       } catch (error) {
         lastError = error;
-        this.markFailure(entry.name, error);
+        const failureState = this.markFailure(entry.name, error);
+        await this.alertProviderDown(entry.name, kind, failureState.status, error);
         const nextProvider = providers.find((candidate) => candidate.name !== entry.name && !this.isCircuitOpen(candidate.name));
         if (nextProvider) await this.logFailover(entry.name, kind, error);
       }
@@ -128,11 +131,13 @@ export class AiProviderRouterService implements AiProvider {
   private markFailure(provider: ProviderName, error: unknown) {
     const current = this.circuits.get(provider) || { failures: 0, openUntil: 0 };
     const failures = current.failures + 1;
+    const circuitOpen = failures >= CIRCUIT_FAILURE_THRESHOLD;
     this.circuits.set(provider, {
       failures,
-      openUntil: failures >= CIRCUIT_FAILURE_THRESHOLD ? Date.now() + CIRCUIT_OPEN_MS : current.openUntil,
+      openUntil: circuitOpen ? Date.now() + CIRCUIT_OPEN_MS : current.openUntil,
       lastError: safeErrorMessage(error),
     });
+    return { failures, status: circuitOpen ? "circuit-open" : "down" };
   }
 
   private isCircuitOpen(provider: ProviderName) {
@@ -153,6 +158,35 @@ export class AiProviderRouterService implements AiProvider {
     } catch {
       // Provider failover should not fail the user request just because
       // incident persistence is temporarily unavailable.
+    }
+  }
+
+  private async alertProviderDown(providerName: ProviderName, serviceName: ChainKind, status: string, error: unknown) {
+    const key = `${providerName}:${serviceName}:${status}`;
+    const now = Date.now();
+    const lastAlertedAt = this.adminAlertedAt.get(key) || 0;
+    if (now - lastAlertedAt < ADMIN_ALERT_COOLDOWN_MS) return;
+    this.adminAlertedAt.set(key, now);
+
+    const errorMessage = safeErrorMessage(error);
+    const subject = `Remi AI provider ${providerName} is ${status}`;
+    const message = `${providerName} is ${status} for ${serviceName} AI calls. Error: ${errorMessage}`;
+
+    Sentry.captureMessage(subject, {
+      level: status === "circuit-open" ? "error" : "warning",
+      extra: { providerName, serviceName, status, errorMessage },
+    });
+
+    if (process.env.ADMIN_ALERT_WEBHOOK_URL) {
+      await sendWebhookAlert(process.env.ADMIN_ALERT_WEBHOOK_URL, { subject, message, providerName, serviceName, status, errorMessage });
+    }
+    if (process.env.RESEND_API_KEY && process.env.ADMIN_ALERT_EMAIL) {
+      await sendResendEmail({
+        to: process.env.ADMIN_ALERT_EMAIL,
+        from: process.env.ADMIN_ALERT_FROM_EMAIL || "Remi Alerts <alerts@remi.local>",
+        subject,
+        text: message,
+      });
     }
   }
 }
@@ -181,4 +215,31 @@ function safetyCriticalFallbackRaw(configuredProviders: ProviderName[], attempte
 function safeErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message.slice(0, 300);
   return String(error).slice(0, 300);
+}
+
+async function sendWebhookAlert(url: string, payload: Record<string, unknown>) {
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Alert delivery must never break the user-facing AI request path.
+  }
+}
+
+async function sendResendEmail(params: { to: string; from: string; subject: string; text: string }) {
+  try {
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(params),
+    });
+  } catch {
+    // Sentry still receives the alert even if optional email delivery fails.
+  }
 }

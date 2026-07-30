@@ -81,6 +81,29 @@ describe("AiProviderRouterService", () => {
       error_message: "auth failed",
     });
   });
+
+  it("sends admin alerts when a configured provider goes down", async () => {
+    process.env.ADMIN_ALERT_WEBHOOK_URL = "https://alerts.example.com/remi";
+    process.env.RESEND_API_KEY = "test-resend";
+    process.env.ADMIN_ALERT_EMAIL = "admin@example.com";
+    process.env.ADMIN_ALERT_FROM_EMAIL = "Remi Alerts <alerts@example.com>";
+    const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue({ ok: true } as Response);
+    const openai = provider({ generateJSON: jest.fn().mockRejectedValue(new Error("provider unavailable")) });
+    const anthropic = provider({ generateJSON: jest.fn().mockResolvedValue({ raw: "{\"ok\":true}" }) });
+    const router = makeRouter({ openai, anthropic });
+
+    await router.generateJSON({ systemPrompt: "general", messages: [{ role: "user", content: "hello" }] });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://alerts.example.com/remi",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.resend.com/emails",
+      expect.objectContaining({ method: "POST" }),
+    );
+    fetchMock.mockRestore();
+  });
 });
 
 function provider(overrides: Partial<any> = {}) {

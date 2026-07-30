@@ -89,6 +89,11 @@
   }
   .tab.active { color: #0b1421; background: var(--blue); border-color: var(--blue); }
   .refresh-note { color: var(--faint); font-size: 12px; white-space: nowrap; }
+  .refresh-box { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+  .mini-button {
+    padding: 8px 10px; border-radius: 10px; background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line); font-size: 12px;
+  }
   .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
   .stat, .panel {
     background: rgba(23, 28, 34, .92); border: 1px solid var(--line); border-radius: 18px;
@@ -179,7 +184,11 @@
           <button class="tab" data-tab="audit" onclick="setTab('audit')">Audit</button>
           <button class="tab" data-tab="system" onclick="setTab('system')">System</button>
         </div>
-        <div class="refresh-note" id="lastRefresh">Not loaded</div>
+        <div class="refresh-box">
+          <span class="refresh-note" id="lastRefresh">Not loaded</span>
+          <button id="autoRefreshButton" class="mini-button" onclick="toggleAutoRefresh()">Auto-refresh on</button>
+          <button class="mini-button" onclick="refreshLiveSections()">Refresh now</button>
+        </div>
       </div>
 
       <div class="stats" id="stats"></div>
@@ -262,6 +271,8 @@ const state = {
   providerHealth: null,
   systemHealth: null,
   tab: 'overview',
+  autoRefresh: true,
+  liveRefreshTimer: null,
 };
 
 document.getElementById('apiUrl').value = sessionStorage.getItem('remiAdminApiUrl') || 'http://localhost:3000';
@@ -310,6 +321,7 @@ async function loadAll() {
     state.systemHealth = systemHealth;
     renderAll();
     document.getElementById('dashboard').classList.add('active');
+    startAutoRefresh();
   } catch (e) {
     error.innerText = e.message || 'Unable to load dashboard.';
     error.classList.add('active');
@@ -323,6 +335,38 @@ function setTab(tab) {
   state.tab = tab;
   document.querySelectorAll('.tab').forEach((button) => button.classList.toggle('active', button.dataset.tab === tab));
   renderPanels();
+}
+
+async function refreshLiveSections() {
+  if (!document.getElementById('dashboard').classList.contains('active')) return;
+  try {
+    const [overview, providerHealth, systemHealth] = await Promise.all([
+      callOptional('/admin/overview', state.overview || {}),
+      callOptional('/admin/provider-incidents', { providers: [], incidents: [] }),
+      callOptional('/admin/system-health', { config: [], providerPriority: {}, providers: [] }),
+    ]);
+    if (!overview.warning) state.overview = overview;
+    state.providerHealth = providerHealth;
+    state.systemHealth = systemHealth;
+    renderAll();
+  } catch (error) {
+    document.getElementById('lastRefresh').innerText = 'Refresh failed';
+  }
+}
+
+function startAutoRefresh() {
+  if (state.liveRefreshTimer) window.clearInterval(state.liveRefreshTimer);
+  if (!state.autoRefresh) return;
+  state.liveRefreshTimer = window.setInterval(refreshLiveSections, 30000);
+  document.getElementById('autoRefreshButton').innerText = 'Auto-refresh on';
+}
+
+function toggleAutoRefresh() {
+  state.autoRefresh = !state.autoRefresh;
+  if (state.liveRefreshTimer) window.clearInterval(state.liveRefreshTimer);
+  state.liveRefreshTimer = null;
+  document.getElementById('autoRefreshButton').innerText = state.autoRefresh ? 'Auto-refresh on' : 'Auto-refresh off';
+  if (state.autoRefresh) startAutoRefresh();
 }
 
 function renderAll() {
@@ -442,6 +486,8 @@ function renderSystemHealth(data) {
 }
 
 function clearSession() {
+  if (state.liveRefreshTimer) window.clearInterval(state.liveRefreshTimer);
+  state.liveRefreshTimer = null;
   document.getElementById('adminKey').value = '';
   document.getElementById('dashboard').classList.remove('active');
   document.getElementById('error').classList.remove('active');
