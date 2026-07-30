@@ -52,6 +52,7 @@ import PrivacyPolicyScreen from "../screens/PrivacyPolicyScreen";
 import HelpCenterScreen from "../screens/HelpCenterScreen";
 import ExportHealthDataScreen from "../screens/ExportHealthDataScreen";
 import DeleteAccountDataScreen from "../screens/DeleteAccountDataScreen";
+import PrivacyDataDashboardScreen from "../screens/PrivacyDataDashboardScreen";
 import { navigationRef } from "./navigationRef";
 
 const Stack = createNativeStackNavigator();
@@ -217,6 +218,7 @@ export default function RootNavigator({ hasSession, onboarded, displayVersion }:
         <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
         <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
+        <Stack.Screen name="PrivacyDataDashboard" component={PrivacyDataDashboardScreen} />
         <Stack.Screen name="ExportHealthData" component={ExportHealthDataScreen} />
         <Stack.Screen name="DeleteAccountData" component={DeleteAccountDataScreen} />
         <Stack.Screen name="PrescriptionScan" component={PrescriptionScanScreen} options={{ presentation: "modal" }} />

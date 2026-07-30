@@ -1,10 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import { authHeader, fetchAccountBackup, saveAccountBackup } from "./api";
+import { apiFetch, authHeader, fetchAccountBackup, saveAccountBackup } from "./api";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
 const EMERGENCY_STORAGE_KEY = "remi_emergency_info";
 const BACKUP_SCHEMA_VERSION = "1";
+export const ACCOUNT_BACKUP_LAST_SYNC_KEY = "remi_account_backup_last_sync";
 
 const SECURE_BACKUP_KEYS = [
   "remi_profile",
@@ -30,6 +31,7 @@ const SECURE_BACKUP_KEYS = [
   "remi_large_text",
   "remi_dark_appearance",
   "remi_analytics_enabled",
+  "remi_low_bandwidth_mode",
 ];
 
 const ASYNC_BACKUP_KEYS = [
@@ -62,8 +64,13 @@ export async function backupAccountDataNow(): Promise<boolean> {
     );
     const secure = Object.fromEntries(secureEntries.filter(([, value]) => value !== null));
     const asyncStorage = Object.fromEntries(asyncEntries.filter(([, value]) => value !== null));
-    const response = await saveAccountBackup({ secure, asyncStorage, backedUpAt: new Date().toISOString() }, BACKUP_SCHEMA_VERSION);
-    return Boolean(response?.saved);
+    const backedUpAt = new Date().toISOString();
+    const response = await saveAccountBackup({ secure, asyncStorage, backedUpAt }, BACKUP_SCHEMA_VERSION);
+    if (response?.saved) {
+      await SecureStore.setItemAsync(ACCOUNT_BACKUP_LAST_SYNC_KEY, backedUpAt);
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -108,7 +115,7 @@ async function restoreEmergencyInfoIfNeeded() {
   const alreadyCached = await SecureStore.getItemAsync(EMERGENCY_STORAGE_KEY);
   if (alreadyCached) return false;
   try {
-    const res = await fetch(`${API_BASE_URL}/emergency-info`, {
+    const res = await apiFetch(`${API_BASE_URL}/emergency-info`, {
       headers: await authHeader(),
     });
     if (!res.ok) return false;

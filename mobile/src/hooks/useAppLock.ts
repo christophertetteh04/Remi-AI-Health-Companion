@@ -5,6 +5,7 @@ import * as SecureStore from "expo-secure-store";
 
 export const LOCK_ENABLED_KEY = "remi_lock_enabled";
 export const LOCK_TIMEOUT_KEY = "remi_lock_timeout_ms";
+export const LOCK_PIN_KEY = "remi_lock_pin";
 export const DEFAULT_LOCK_TIMEOUT_MS = 60 * 1000;
 
 type LockListener = (enabled: boolean) => void;
@@ -16,6 +17,7 @@ function notifyLockListeners(enabled: boolean) {
 
 export function useAppLock() {
   const [lockEnabled, setLockEnabled] = useState(false);
+  const [pinEnabled, setPinEnabled] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [checking, setChecking] = useState(true);
   const backgroundedAt = useRef<number | null>(null);
@@ -23,7 +25,9 @@ export function useAppLock() {
   useEffect(() => {
     (async () => {
       const enabled = await SecureStore.getItemAsync(LOCK_ENABLED_KEY);
+      const pin = await SecureStore.getItemAsync(LOCK_PIN_KEY);
       setLockEnabled(enabled === "true");
+      setPinEnabled(Boolean(pin));
       setUnlocked(enabled !== "true"); // no lock configured yet → don't block access
       setChecking(false);
     })();
@@ -59,10 +63,7 @@ export function useAppLock() {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
     if (!hasHardware || !isEnrolled) {
-      // No biometrics available/enrolled — device passcode fallback
-      // still works via LocalAuthentication's own fallback UI on most
-      // platforms, but if it's totally unavailable, don't lock the
-      // user out of their own health data permanently.
+      if (await SecureStore.getItemAsync(LOCK_PIN_KEY)) return false;
       setUnlocked(true);
       return true;
     }
@@ -92,7 +93,30 @@ export function useAppLock() {
     notifyLockListeners(false);
   };
 
-  return { lockEnabled, unlocked, checking, attemptUnlock, enableLock, disableLock };
+  const setPin = async (pin: string) => {
+    await SecureStore.setItemAsync(LOCK_PIN_KEY, pin);
+    await SecureStore.setItemAsync(LOCK_ENABLED_KEY, "true");
+    setPinEnabled(true);
+    setLockEnabled(true);
+    setUnlocked(true);
+    notifyLockListeners(true);
+  };
+
+  const clearPin = async () => {
+    await SecureStore.deleteItemAsync(LOCK_PIN_KEY);
+    setPinEnabled(false);
+  };
+
+  const unlockWithPin = async (pin: string) => {
+    const stored = await SecureStore.getItemAsync(LOCK_PIN_KEY);
+    if (stored && stored === pin) {
+      setUnlocked(true);
+      return true;
+    }
+    return false;
+  };
+
+  return { lockEnabled, pinEnabled, unlocked, checking, attemptUnlock, enableLock, disableLock, setPin, clearPin, unlockWithPin };
 }
 
 function subscribeToLockChanges(listener: LockListener) {

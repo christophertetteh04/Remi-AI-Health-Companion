@@ -1,8 +1,11 @@
 import * as SecureStore from "expo-secure-store";
+import { isLowBandwidthModeEnabled } from "./network";
 import { analyticsRequestHeader } from "./posthog";
 import { supabase } from "./supabaseClient";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000";
+const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
+const LOW_BANDWIDTH_REQUEST_TIMEOUT_MS = 25000;
 export const SESSION_TOKEN_KEY = "remi_session_token";
 export const REFRESH_TOKEN_KEY = "remi_refresh_token";
 
@@ -57,6 +60,30 @@ export async function authHeader() {
   };
 }
 
+export async function apiFetch(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutMs = (await isLowBandwidthModeEnabled()) ? LOW_BANDWIDTH_REQUEST_TIMEOUT_MS : DEFAULT_REQUEST_TIMEOUT_MS;
+  const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller?.signal ?? init?.signal,
+    });
+  } catch (error) {
+    throw new Error(readableNetworkError(error));
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function readableNetworkError(error: unknown) {
+  const name = typeof error === "object" && error && "name" in error ? String((error as any).name) : "";
+  if (name === "AbortError") {
+    return "The connection is slow right now. Remi saved what it can locally and will retry when the network improves.";
+  }
+  return "Remi could not reach the server. Check your connection and try again.";
+}
+
 export type CheckinTopic = "general" | "sexual_health";
 export type DocumentUploadCategory =
   | "lab_report"
@@ -108,7 +135,7 @@ export async function sendCheckinMessage(
     schedules?: { id: string; title: string; detail: string; route: string; condition?: string }[];
   },
 ) {
-  const res = await fetch(`${API_BASE_URL}/checkins/message`, {
+  const res = await apiFetch(`${API_BASE_URL}/checkins/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify({ message, history, topic, memoryContext }),
@@ -133,7 +160,7 @@ export async function uploadCheckinImage(body: {
   sampleType?: "urine" | "stool";
   scanType?: string;
 }): Promise<CheckinUploadResponse> {
-  const res = await fetch(`${API_BASE_URL}/checkins/upload`, {
+  const res = await apiFetch(`${API_BASE_URL}/checkins/upload`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify(body),
@@ -150,14 +177,14 @@ export async function uploadCheckinImage(body: {
 }
 
 export async function fetchChatMemory() {
-  const res = await fetch(`${API_BASE_URL}/checkins/memory`, { headers: await authHeader() });
+  const res = await apiFetch(`${API_BASE_URL}/checkins/memory`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Chat memory request failed: ${res.status}`);
   const data = await res.json();
   return Array.isArray(data?.messages) ? (data.messages as ChatMemoryMessage[]) : [];
 }
 
 export async function saveChatMemoryRemote(messages: ChatMemoryMessage[]) {
-  const res = await fetch(`${API_BASE_URL}/checkins/memory`, {
+  const res = await apiFetch(`${API_BASE_URL}/checkins/memory`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify({ messages }),
@@ -167,7 +194,7 @@ export async function saveChatMemoryRemote(messages: ChatMemoryMessage[]) {
 }
 
 export async function deleteChatMemoryRemote() {
-  const res = await fetch(`${API_BASE_URL}/checkins/memory`, {
+  const res = await apiFetch(`${API_BASE_URL}/checkins/memory`, {
     method: "DELETE",
     headers: await authHeader(),
   });
@@ -176,14 +203,14 @@ export async function deleteChatMemoryRemote() {
 }
 
 export async function fetchRecentActivitiesRemote() {
-  const res = await fetch(`${API_BASE_URL}/checkins/recent-activities`, { headers: await authHeader() });
+  const res = await apiFetch(`${API_BASE_URL}/checkins/recent-activities`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Recent activities request failed: ${res.status}`);
   const data = await res.json();
   return Array.isArray(data?.activities) ? (data.activities as RecentActivityPayload[]) : [];
 }
 
 export async function saveRecentActivitiesRemote(activities: RecentActivityPayload[]) {
-  const res = await fetch(`${API_BASE_URL}/checkins/recent-activities`, {
+  const res = await apiFetch(`${API_BASE_URL}/checkins/recent-activities`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify({ activities }),
@@ -193,13 +220,13 @@ export async function saveRecentActivitiesRemote(activities: RecentActivityPaylo
 }
 
 export async function fetchAccountBackup() {
-  const res = await fetch(`${API_BASE_URL}/account-backup`, { headers: await authHeader() });
+  const res = await apiFetch(`${API_BASE_URL}/account-backup`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Account backup request failed: ${res.status}`);
   return res.json();
 }
 
 export async function saveAccountBackup(data: Record<string, unknown>, schemaVersion = "1") {
-  const res = await fetch(`${API_BASE_URL}/account-backup`, {
+  const res = await apiFetch(`${API_BASE_URL}/account-backup`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify({ data, schemaVersion }),
@@ -209,13 +236,13 @@ export async function saveAccountBackup(data: Record<string, unknown>, schemaVer
 }
 
 export async function getMedications() {
-  const res = await fetch(`${API_BASE_URL}/medications`, { headers: await authHeader() });
+  const res = await apiFetch(`${API_BASE_URL}/medications`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Medications request failed: ${res.status}`);
   return res.json();
 }
 
 export async function markMedicationTaken(medicationId: string, takenAt: string) {
-  const res = await fetch(`${API_BASE_URL}/medications/${medicationId}/log`, {
+  const res = await apiFetch(`${API_BASE_URL}/medications/${medicationId}/log`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify({ takenAt }),
@@ -228,7 +255,7 @@ export async function updateMedication(
   medicationId: string,
   body: { name: string; dose: string; frequency: string; hour?: number; minute?: number },
 ) {
-  const res = await fetch(`${API_BASE_URL}/medications/${medicationId}`, {
+  const res = await apiFetch(`${API_BASE_URL}/medications/${medicationId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify(body),
@@ -238,7 +265,7 @@ export async function updateMedication(
 }
 
 export async function submitVitalsReading(reading: { systolic: number; diastolic: number; glucose?: number; wellbeing?: number; pregnancyMode?: boolean }) {
-  const res = await fetch(`${API_BASE_URL}/vitals`, {
+  const res = await apiFetch(`${API_BASE_URL}/vitals`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify(reading),
@@ -248,13 +275,13 @@ export async function submitVitalsReading(reading: { systolic: number; diastolic
 }
 
 export async function getVitalsReadings() {
-  const res = await fetch(`${API_BASE_URL}/vitals`, { headers: await authHeader() });
+  const res = await apiFetch(`${API_BASE_URL}/vitals`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Vitals list request failed: ${res.status}`);
   return res.json();
 }
 
 export async function updateVitalsReading(id: string, reading: { systolic: number; diastolic: number; glucose?: number; wellbeing?: number; pregnancyMode?: boolean }) {
-  const res = await fetch(`${API_BASE_URL}/vitals/${id}`, {
+  const res = await apiFetch(`${API_BASE_URL}/vitals/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify(reading),
@@ -264,7 +291,7 @@ export async function updateVitalsReading(id: string, reading: { systolic: numbe
 }
 
 export async function deleteVitalsReading(id: string) {
-  const res = await fetch(`${API_BASE_URL}/vitals/${id}`, {
+  const res = await apiFetch(`${API_BASE_URL}/vitals/${id}`, {
     method: "DELETE",
     headers: await authHeader(),
   });
@@ -273,19 +300,19 @@ export async function deleteVitalsReading(id: string) {
 }
 
 export async function getUnifiedTimeline(offset = 0, limit = 30) {
-  const res = await fetch(`${API_BASE_URL}/health-summary/timeline?offset=${offset}&limit=${limit}`, { headers: await authHeader() });
+  const res = await apiFetch(`${API_BASE_URL}/health-summary/timeline?offset=${offset}&limit=${limit}`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Timeline request failed: ${res.status}`);
   return res.json();
 }
 
 export async function getCorrelationalInsights() {
-  const res = await fetch(`${API_BASE_URL}/health-summary/correlations`, { headers: await authHeader() });
+  const res = await apiFetch(`${API_BASE_URL}/health-summary/correlations`, { headers: await authHeader() });
   if (!res.ok) throw new Error(`Correlations request failed: ${res.status}`);
   return res.json();
 }
 
 export async function generateDoctorPrepSummary(body: { visitDate?: string; concern?: string }) {
-  const res = await fetch(`${API_BASE_URL}/health-summary/doctor-prep`, {
+  const res = await apiFetch(`${API_BASE_URL}/health-summary/doctor-prep`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify(body),
@@ -306,7 +333,7 @@ export async function exportHealthSummaryPdf(body: { visitDate?: string; concern
 }
 
 export async function deleteAccountData(confirmation: "DELETE") {
-  const res = await fetch(`${API_BASE_URL}/account-data`, {
+  const res = await apiFetch(`${API_BASE_URL}/account-data`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify({ confirmation }),

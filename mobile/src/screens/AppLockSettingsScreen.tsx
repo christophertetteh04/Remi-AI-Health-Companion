@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import { ArrowLeft, Check, Clock3, Fingerprint, KeyRound, LockKeyhole, ScanFace, ShieldCheck } from "lucide-react-native";
@@ -16,8 +16,10 @@ const timingOptions = [
 type DeviceMethod = { title: string; detail: string; available: boolean; icon: React.ReactNode };
 
 export default function AppLockSettingsScreen({ navigation }: any) {
-  const { lockEnabled, enableLock, disableLock, attemptUnlock } = useAppLock();
+  const { lockEnabled, pinEnabled, enableLock, disableLock, attemptUnlock, setPin, clearPin } = useAppLock();
   const [saving, setSaving] = useState(false);
+  const [pinDraft, setPinDraft] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
   const [timeoutMs, setTimeoutMs] = useState(DEFAULT_LOCK_TIMEOUT_MS);
   const [hasHardware, setHasHardware] = useState(false);
   const [isEnrolled, setIsEnrolled] = useState(false);
@@ -53,9 +55,9 @@ export default function AppLockSettingsScreen({ navigation }: any) {
       icon: <Fingerprint size={18} color={colors.primary} />,
     },
     {
-      title: "Device passcode",
-      detail: "Remi allows the system passcode fallback when available.",
-      available: hasHardware || isEnrolled,
+      title: "Remi PIN",
+      detail: pinEnabled ? "A Remi PIN is configured as a private app fallback." : "Add a Remi PIN for shared-device unlock.",
+      available: true,
       icon: <KeyRound size={18} color={colors.primary} />,
     },
   ];
@@ -85,6 +87,28 @@ export default function AppLockSettingsScreen({ navigation }: any) {
   const chooseTiming = async (value: number) => {
     setTimeoutMs(value);
     await SecureStore.setItemAsync(LOCK_TIMEOUT_KEY, String(value));
+  };
+
+  const savePin = async () => {
+    if (pinDraft.length < 4) {
+      Alert.alert("PIN too short", "Choose at least 4 digits for your Remi PIN.");
+      return;
+    }
+    if (pinDraft !== pinConfirm) {
+      Alert.alert("PINs do not match", "Enter the same PIN twice.");
+      return;
+    }
+    await setPin(pinDraft);
+    setPinDraft("");
+    setPinConfirm("");
+    Alert.alert("Remi PIN saved", "You can unlock Remi with biometrics or your app PIN.");
+  };
+
+  const removePin = () => {
+    Alert.alert("Remove Remi PIN?", "Biometric or device unlock can still protect Remi if App Lock is on.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove PIN", style: "destructive", onPress: clearPin },
+    ]);
   };
 
   const testLock = async () => {
@@ -152,6 +176,27 @@ export default function AppLockSettingsScreen({ navigation }: any) {
 
       <View style={styles.section}>
         <View style={styles.sectionTitleRow}>
+          <KeyRound size={16} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Remi PIN</Text>
+        </View>
+        <View style={styles.pinSetup}>
+          <Text style={styles.pinSetupText}>Use a private app PIN as a fallback when biometrics are unavailable or cancelled.</Text>
+          <TextInput value={pinDraft} onChangeText={(value) => setPinDraft(value.replace(/\D/g, "").slice(0, 6))} secureTextEntry keyboardType="number-pad" placeholder="New PIN" placeholderTextColor={colors.inkFaint} style={styles.pinInput} />
+          <TextInput value={pinConfirm} onChangeText={(value) => setPinConfirm(value.replace(/\D/g, "").slice(0, 6))} secureTextEntry keyboardType="number-pad" placeholder="Confirm PIN" placeholderTextColor={colors.inkFaint} style={styles.pinInput} />
+          <Pressable onPress={savePin} style={styles.pinSaveButton}>
+            <KeyRound size={15} color={colors.bg} />
+            <Text style={styles.pinSaveText}>{pinEnabled ? "Change Remi PIN" : "Set Remi PIN"}</Text>
+          </Pressable>
+          {pinEnabled ? (
+            <Pressable onPress={removePin} style={styles.pinRemoveButton}>
+              <Text style={styles.pinRemoveText}>Remove Remi PIN</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionTitleRow}>
           <Clock3 size={16} color={colors.primary} />
           <Text style={styles.sectionTitle}>Lock timing</Text>
         </View>
@@ -171,7 +216,7 @@ export default function AppLockSettingsScreen({ navigation }: any) {
 
       <View style={styles.note}>
         <LockKeyhole size={15} color={colors.mint} />
-        <Text style={styles.noteText}>If no biometric is enrolled, your device may use its passcode fallback. Remi only receives success or cancelled from the system prompt.</Text>
+        <Text style={styles.noteText}>Remi notifications stay generic on the lock screen. Open the app and unlock Remi to view health details.</Text>
       </View>
 
       <PrimaryButton title="Test app lock" onPress={testLock} style={{ opacity: lockEnabled ? 1 : 0.52 }} />
@@ -203,6 +248,13 @@ const styles = StyleSheet.create({
   methodTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.5 },
   methodText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, lineHeight: 17, marginTop: 4 },
   checkIcon: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.mint, alignItems: "center", justifyContent: "center", marginLeft: 10 },
+  pinSetup: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline, padding: 16, gap: 10 },
+  pinSetupText: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, lineHeight: 17 },
+  pinInput: { minHeight: 48, borderRadius: 13, backgroundColor: colors.bg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 15, paddingHorizontal: 14 },
+  pinSaveButton: { minHeight: 46, borderRadius: 999, backgroundColor: colors.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  pinSaveText: { color: colors.bg, fontFamily: fonts.bodySemiBold, fontSize: 13 },
+  pinRemoveButton: { alignItems: "center", paddingVertical: 8 },
+  pinRemoveText: { color: colors.urgent, fontFamily: fonts.bodySemiBold, fontSize: 12.5 },
   timingRow: { flexDirection: "row", alignItems: "center", padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   timingSelected: { backgroundColor: colors.primaryDim },
   timingTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 13.5 },

@@ -103,7 +103,7 @@ export async function scheduleMedicationReminder(
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: "Remi reminder",
-      body: medicationReminderBody(details),
+      body: genericReminderBody(),
       data: { type: "medication", medicationId, medicationName: details.name || "", purpose: details.purpose || "" },
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
@@ -116,14 +116,8 @@ export async function scheduleMedicationReminder(
   return id;
 }
 
-function medicationReminderBody(details: { name?: string; dose?: string; purpose?: string }) {
-  const name = details.name?.trim();
-  const dose = details.dose?.trim();
-  const purpose = details.purpose?.trim();
-  if (name && purpose) return `Time for ${name}: ${purpose}`;
-  if (name && dose) return `Time for ${name} ${dose}.`;
-  if (name) return `Time for ${name}.`;
-  return "You have a medication scheduled now.";
+function genericReminderBody() {
+  return "You have a Remi reminder. Open the app to view details.";
 }
 
 export async function cancelMedicationReminder(medicationId: string) {
@@ -161,7 +155,7 @@ export async function scheduleWeeklyHealthBriefReminder() {
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: "Remi weekly brief",
-      body: "Your weekly health summary is ready in Chat.",
+      body: genericReminderBody(),
       data: { type: "weekly_brief" },
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday: 1, hour: 9, minute: 0 },
@@ -191,7 +185,7 @@ export async function scheduleHealthReminders({ types, weekday, time }: { types:
   const ids: string[] = [];
   for (const type of types) {
     const id = await Notifications.scheduleNotificationAsync({
-      content: { title: "Remi health reminder", body: healthReminderMessage(type), data: { type: healthReminderDataType(type), reminderType: type } },
+      content: { title: "Remi reminder", body: genericReminderBody(), data: { type: healthReminderDataType(type), reminderType: type } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.WEEKLY, weekday, hour, minute },
     });
     ids.push(id);
@@ -215,13 +209,6 @@ export async function cancelHealthReminders(clearPreferences = true) {
   await SecureStore.deleteItemAsync(HEALTH_REMINDER_IDS_KEY);
   await SecureStore.deleteItemAsync("remi_vitals_reminder_id");
   if (clearPreferences) await SecureStore.deleteItemAsync(HEALTH_REMINDERS_ENABLED_KEY);
-}
-
-function healthReminderMessage(type: string) {
-  if (type === "vitals") return "Time for your weekly vitals check-in.";
-  if (type === "checkin") return "Take a moment for a quick Remi health check-in.";
-  if (type === "medication_review") return "Review your medication list and reminders.";
-  return "Time for your Remi health reminder.";
 }
 
 function healthReminderDataType(type: string) {
@@ -269,7 +256,7 @@ export async function scheduleHydrationReminders(times: string[]) {
     const minute = Number(minuteRaw);
     if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
     const id = await Notifications.scheduleNotificationAsync({
-      content: { title: "Remi hydration", body: hydrationReminderMessage(time), data: { type: "hydration" } },
+      content: { title: "Remi reminder", body: genericReminderBody(), data: { type: "hydration" } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
     });
     ids.push(id);
@@ -289,12 +276,6 @@ export async function cancelHydrationReminder(clearPreferences = true) {
   if (clearPreferences) await SecureStore.deleteItemAsync(HYDRATION_ENABLED_KEY);
 }
 
-function hydrationReminderMessage(time: string) {
-  if (time < "12:00") return "A gentle water check for your morning.";
-  if (time < "17:00") return "A quick hydration pause for your afternoon.";
-  return "A light hydration reminder for the evening.";
-}
-
 export async function scheduleAnnualCheckupReminder(lastVisitISODate: string) {
   const Notifications = await getNotifications();
   if (!Notifications) return null;
@@ -310,7 +291,7 @@ export async function scheduleAnnualCheckupReminder(lastVisitISODate: string) {
   if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
 
   const id = await Notifications.scheduleNotificationAsync({
-    content: { title: "Remi reminder", body: "It's been about a year since your last check-up.", data: { type: "checkup" } },
+    content: { title: "Remi reminder", body: genericReminderBody(), data: { type: "checkup" } },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
   });
   await SecureStore.setItemAsync("remi_checkup_reminder_id", id);
@@ -332,7 +313,7 @@ export async function scheduleKidneyLabReminder(nextLabISODate: string) {
   if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
 
   const id = await Notifications.scheduleNotificationAsync({
-    content: { title: "Remi reminder", body: "Your kidney lab follow-up is due today.", data: { type: "lab", condition: "kidney" } },
+    content: { title: "Remi reminder", body: genericReminderBody(), data: { type: "lab", condition: "kidney" } },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
   });
   await SecureStore.setItemAsync("remi_kidney_lab_reminder_id", id);
@@ -354,7 +335,7 @@ export async function scheduleCholesterolLabReminder(nextLabISODate: string) {
   if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
 
   const id = await Notifications.scheduleNotificationAsync({
-    content: { title: "Remi reminder", body: "Your cholesterol lab follow-up is due today.", data: { type: "lab", condition: "cholesterol" } },
+    content: { title: "Remi reminder", body: genericReminderBody(), data: { type: "lab", condition: "cholesterol" } },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
   });
   await SecureStore.setItemAsync("remi_cholesterol_lab_reminder_id", id);
@@ -376,7 +357,7 @@ export async function scheduleThyroidLabReminder(nextLabISODate: string) {
   if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
 
   const id = await Notifications.scheduleNotificationAsync({
-    content: { title: "Remi reminder", body: "Your thyroid lab follow-up is due today.", data: { type: "lab", condition: "thyroid" } },
+    content: { title: "Remi reminder", body: genericReminderBody(), data: { type: "lab", condition: "thyroid" } },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
   });
   await SecureStore.setItemAsync("remi_thyroid_lab_reminder_id", id);
@@ -398,7 +379,7 @@ export async function schedulePlanDateReminder(reminderKey: string, dateISO: str
   if (existing) await Notifications.cancelScheduledNotificationAsync(existing);
 
   const id = await Notifications.scheduleNotificationAsync({
-    content: { title, body, data },
+    content: { title: "Remi reminder", body: genericReminderBody(), data },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
   });
   await SecureStore.setItemAsync(reminderKey, id);
@@ -445,24 +426,24 @@ export async function scheduleDoctorVisitNotifications(visit: {
 
   const prepId = await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Remi doctor visit prep",
-      body: `Your visit prep summary is ready${visit.bodyLocation ? ` for ${visit.bodyLocation}` : ""}.`,
+      title: "Remi reminder",
+      body: genericReminderBody(),
       data: { type: "doctor_visit_prep", visitId: visit.id, urgency: visit.urgency },
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: prepDate },
   });
   const visitId = await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Remi doctor visit",
-      body: `Doctor visit reminder: ${visit.concern || "bring your Remi notes"}.`,
+      title: "Remi reminder",
+      body: genericReminderBody(),
       data: { type: "doctor_visit", visitId: visit.id, urgency: visit.urgency },
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
   });
   const followUpId = await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Remi follow-up",
-      body: "How did it go? What did the doctor say?",
+      title: "Remi reminder",
+      body: genericReminderBody(),
       data: { type: "doctor_visit_followup", visitId: visit.id, urgency: visit.urgency },
     },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: followUpDate },
@@ -505,7 +486,7 @@ export async function schedulePreventiveCareReminders({
     target.setMonth(target.getMonth() + intervalMonths);
     target.setHours(9, 0, 0, 0);
     const id = await Notifications.scheduleNotificationAsync({
-      content: { title: "Remi preventive care", body: preventiveCareMessage(type), data: { type: "preventive_care", preventiveType: type } },
+      content: { title: "Remi reminder", body: genericReminderBody(), data: { type: "preventive_care", preventiveType: type } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: target },
     });
     ids.push(id);
@@ -533,11 +514,4 @@ export async function cancelPreventiveCareReminders(clearPreferences = true) {
   await SecureStore.deleteItemAsync(PREVENTIVE_CARE_REMINDER_IDS_KEY);
   await SecureStore.deleteItemAsync("remi_dental_vision_reminder_id");
   if (clearPreferences) await SecureStore.deleteItemAsync(PREVENTIVE_CARE_ENABLED_KEY);
-}
-
-function preventiveCareMessage(type: string) {
-  if (type === "dental") return "Worth booking a dental check soon.";
-  if (type === "vision") return "Worth booking a vision check soon.";
-  if (type === "general") return "Worth planning a preventive care check soon.";
-  return "Worth checking in on preventive care soon.";
 }

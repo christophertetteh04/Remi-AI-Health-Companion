@@ -134,7 +134,6 @@ export default function SettingsScreen({ navigation }: any) {
         <Section icon={<Shield size={17} color={colors.primary} />} title="Privacy and safety">
           <NavRow label="App lock" detail={lockEnabled ? "On: device unlock required" : "Choose Face ID, fingerprint, or passcode"} icon={<LockKeyhole size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("AppLockSettings")} />
           <NavRow label="Emergency information" detail="Blood type, allergies, medication, contacts" onPress={() => navigation.navigate("EmergencySettings")} />
-          <NavRow label="Privacy policy" detail="How Remi handles health information" onPress={() => navigation.navigate("PrivacyPolicy")} />
         </Section>
 
         <Section icon={<Accessibility size={17} color={colors.primary} />} title="Accessibility">
@@ -143,9 +142,8 @@ export default function SettingsScreen({ navigation }: any) {
         </Section>
 
         <Section icon={<Database size={17} color={colors.primary} />} title="Data">
+          <NavRow label="Privacy & data dashboard" detail="Backup, low-bandwidth mode, app privacy, export, and deletion controls" icon={<Database size={15} color={colors.inkFaint} />} onPress={() => navigation.navigate("PrivacyDataDashboard")} />
           <ToggleRow label="Share product analytics" detail="Uses PostHog event counts only; no chat, lab, or medication text" value={analytics} onValueChange={toggleAnalytics} />
-          <NavRow label="Export health data" detail="Prepare a copy of your saved records" onPress={() => navigation.navigate("ExportHealthData")} />
-          <NavRow label="Delete account data" detail="Permanently remove your Remi records" destructive onPress={() => navigation.navigate("DeleteAccountData")} />
         </Section>
 
         <Section icon={<HelpCircle size={17} color={colors.primary} />} title="Support">

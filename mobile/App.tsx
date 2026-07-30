@@ -8,11 +8,12 @@ import RootNavigator from "./src/navigation/RootNavigator";
 import LockScreen from "./src/screens/LockScreen";
 import SplashScreen from "./src/screens/SplashScreen";
 import RemiAlertHost from "./src/components/RemiAlertHost";
-import RemiToast from "./src/components/RemiToast";
+import RemiToast, { showRemiToast } from "./src/components/RemiToast";
 import { useAppLock } from "./src/hooks/useAppLock";
 import { navigateFromNotification } from "./src/navigation/navigationRef";
 import { backupAccountDataNow, restoreAccountDataIfNeeded } from "./src/services/accountRecovery";
 import { getFreshAccessToken } from "./src/services/api";
+import { checkConnectivity, type ConnectivityStatus } from "./src/services/connectivity";
 import { installLargeTextScaling, loadDarkAppearanceEnabled, loadLargeTextEnabled, subscribeLargeText } from "./src/services/largeText";
 import { installRemiAlert } from "./src/services/remiAlert";
 import { colors } from "./src/theme/tokens";
@@ -37,7 +38,7 @@ export default function App() {
   const [hasSession, setHasSession] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
   const [displayVersion, setDisplayVersion] = useState(0);
-  const { lockEnabled, unlocked, checking: lockChecking, attemptUnlock } = useAppLock();
+  const { lockEnabled, pinEnabled, unlocked, checking: lockChecking, attemptUnlock, unlockWithPin } = useAppLock();
 
   const [bodyLoaded] = usePlusJakarta({ PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold });
   const [monoLoaded] = useJetBrainsMono({ JetBrainsMono_400Regular });
@@ -104,7 +105,7 @@ export default function App() {
   if (lockEnabled && !unlocked) {
     return (
       <SafeAreaProvider>
-        <LockScreen onUnlock={attemptUnlock} />
+        <LockScreen onUnlock={attemptUnlock} onUnlockWithPin={pinEnabled ? unlockWithPin : undefined} />
       </SafeAreaProvider>
     );
   }
@@ -114,9 +115,51 @@ export default function App() {
       <ToastProvider placement="top" duration={3200} animationType="slide-in">
         <StatusBar barStyle={colors.bg === "#090D13" ? "light-content" : "dark-content"} backgroundColor={colors.bg} />
         <RootNavigator hasSession={hasSession} onboarded={onboarded} displayVersion={displayVersion} />
+        <ConnectivityAlert />
         <RemiAlertHost />
         <RemiToast />
       </ToastProvider>
     </SafeAreaProvider>
   );
+}
+
+function ConnectivityAlert() {
+  const lastShownAt = React.useRef(0);
+  const lastStatus = React.useRef<ConnectivityStatus>("online");
+
+  useEffect(() => {
+    const runCheck = () => {
+      checkConnectivity()
+        .then((status) => {
+          if (status === "online") {
+            lastStatus.current = "online";
+            return;
+          }
+          const now = Date.now();
+          const canShow = lastStatus.current !== status || now - lastShownAt.current > 5 * 60 * 1000;
+          if (!canShow) return;
+          lastStatus.current = status;
+          lastShownAt.current = now;
+          showRemiToast(
+            status === "offline" ? "No internet connection" : "Low network signal",
+            status === "offline"
+              ? "Remi will keep local features available and sync when you are back online."
+              : "Your connection is weak. Some uploads or AI replies may take longer.",
+            "top",
+          );
+        })
+        .catch(() => undefined);
+    };
+
+    const startupTimer = setTimeout(runCheck, 700);
+    const appStateSub = AppState.addEventListener("change", (state) => {
+      if (state === "active") runCheck();
+    });
+    return () => {
+      clearTimeout(startupTimer);
+      appStateSub.remove();
+    };
+  }, []);
+
+  return null;
 }

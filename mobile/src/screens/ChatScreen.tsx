@@ -474,17 +474,29 @@ export default function ChatScreen({ navigation }: any) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
     >
-      <View style={styles.header}>
-        <View style={styles.headerMark}>
-          <HeartPulse size={20} color={colors.bg} />
+      <View style={styles.headerShell}>
+        <View style={styles.header}>
+          <View style={styles.headerMark}>
+            <HeartPulse size={21} color={colors.bg} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Remi</Text>
+            <Text style={styles.headerSub}>{checkinTopic === "sexual_health" ? "Sexual health check-in" : "Daily health companion"}</Text>
+          </View>
+          <View style={styles.headerStatus}>
+            <View style={styles.statusDot} />
+            <Text style={styles.headerStatusText}>Online</Text>
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Remi Chat</Text>
-          <Text style={styles.headerSub}>Private health companion</Text>
-        </View>
-        <View style={styles.headerStatus}>
-          <View style={styles.statusDot} />
-          <Text style={styles.headerStatusText}>Online</Text>
+        <View style={styles.headerMetaRow}>
+          <View style={styles.headerMetaPill}>
+            <ShieldCheck size={12} color={colors.mint} />
+            <Text style={styles.headerMetaText}>Private</Text>
+          </View>
+          <View style={styles.headerMetaPill}>
+            <Sparkles size={12} color={colors.primary} />
+            <Text style={[styles.headerMetaText, { color: colors.primary }]}>Memory on</Text>
+          </View>
         </View>
       </View>
 
@@ -603,7 +615,7 @@ export default function ChatScreen({ navigation }: any) {
             onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120)}
             onSubmitEditing={send}
           />
-          <Pressable onPress={send} style={styles.sendBtn}><Send size={14} color={colors.bg} /></Pressable>
+          <Pressable onPress={send} disabled={!input.trim() || loading} style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}><Send size={14} color={colors.bg} /></Pressable>
         </View>
       </View>
 
@@ -854,15 +866,19 @@ function RecordingBanner() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 18, paddingTop: 54, paddingBottom: 14, backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline },
-  headerMark: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  headerTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 16 },
-  headerSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 2 },
+  headerShell: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12, backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.hairline, shadowColor: "#0F172A", shadowOpacity: 0.05, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
+  header: { flexDirection: "row", alignItems: "center" },
+  headerMark: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 12, shadowColor: colors.primary, shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 3 },
+  headerTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 18, letterSpacing: 0 },
+  headerSub: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 12, marginTop: 2 },
   headerStatus: { flexDirection: "row", alignItems: "center", backgroundColor: colors.mintDim, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.mint, marginRight: 6 },
   headerStatusText: { color: colors.mint, fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
-  messagesContent: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 16 },
-  greetingCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, marginBottom: 14, shadowColor: "#0F172A", shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  headerMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12, paddingLeft: 58 },
+  headerMetaPill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.bg, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 10, paddingVertical: 7 },
+  headerMetaText: { color: colors.mint, fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
+  messagesContent: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 18 },
+  greetingCard: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, marginBottom: 14, shadowColor: "#0F172A", shadowOpacity: 0.09, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
   greetingTop: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   remiMark: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 12, overflow: "hidden" },
   remiPulse: { position: "absolute", width: 46, height: 46, borderRadius: 23, backgroundColor: "rgba(255,255,255,0.14)" },
@@ -870,32 +886,32 @@ const styles = StyleSheet.create({
   remiStatus: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11.5, marginTop: 2 },
   secureBadge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.mintDim, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
   secureText: { color: colors.mint, fontFamily: fonts.bodySemiBold, fontSize: 10.5 },
-  greetingTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 22, lineHeight: 29 },
+  greetingTitle: { color: colors.ink, fontFamily: fonts.display, fontSize: 22, lineHeight: 29, letterSpacing: 0 },
   greetingBody: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 8 },
   greetingTime: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 11, marginTop: 12 },
-  promptGrid: { gap: 8, marginBottom: 16 },
-  promptCard: { flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: colors.primaryDim, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
-  promptText: { color: colors.primary, fontFamily: fonts.bodyMedium, fontSize: 12.5, flex: 1 },
-  messageRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 2 },
+  promptGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginBottom: 16 },
+  promptCard: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: colors.surface, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 13, paddingVertical: 11, shadowColor: "#0F172A", shadowOpacity: 0.04, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
+  promptText: { color: colors.inkSoft, fontFamily: fonts.bodyMedium, fontSize: 12.3, flexShrink: 1, maxWidth: 230 },
+  messageRow: { flexDirection: "row", alignItems: "flex-end", marginBottom: 4 },
   messageRowUser: { justifyContent: "flex-end" },
-  messageAvatar: { width: 28, height: 28, borderRadius: 10, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 8, marginBottom: 20 },
-  messageBlock: { maxWidth: "82%" },
-  bubble: { borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, marginBottom: 4 },
-  bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.primary, borderBottomRightRadius: 6 },
-  bubbleBot: { alignSelf: "flex-start", backgroundColor: colors.surface, borderBottomLeftRadius: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline },
-  messageImage: { width: 190, height: 150, borderRadius: 12, marginBottom: 9, backgroundColor: colors.surfaceRaised },
+  messageAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primaryDim, alignItems: "center", justifyContent: "center", marginRight: 8, marginBottom: 22 },
+  messageBlock: { maxWidth: "84%" },
+  bubble: { borderRadius: 20, paddingHorizontal: 15, paddingVertical: 12, marginBottom: 5 },
+  bubbleUser: { alignSelf: "flex-end", backgroundColor: colors.primary, borderBottomRightRadius: 8, shadowColor: colors.primary, shadowOpacity: 0.14, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  bubbleBot: { alignSelf: "flex-start", backgroundColor: colors.surface, borderBottomLeftRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, shadowColor: "#0F172A", shadowOpacity: 0.045, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 1 },
+  messageImage: { width: 206, height: 154, borderRadius: 14, marginBottom: 9, backgroundColor: colors.surfaceRaised },
   timestamp: { color: colors.inkFaint, fontFamily: fonts.body, fontSize: 10.5, marginBottom: 10 },
   timestampUser: { alignSelf: "flex-end", marginRight: 4 },
   timestampBot: { alignSelf: "flex-start", marginLeft: 4 },
   urgencyBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.peachDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 14, marginLeft: 4 },
-  quickReplyPanel: { alignSelf: "flex-start", maxWidth: "92%", backgroundColor: colors.surface, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 12, marginLeft: 36, marginTop: 4, marginBottom: 12 },
+  quickReplyPanel: { alignSelf: "flex-start", maxWidth: "94%", backgroundColor: colors.surface, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 13, marginLeft: 38, marginTop: 4, marginBottom: 12, shadowColor: "#0F172A", shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
   quickReplyTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 12.5, marginBottom: 9 },
   quickReplyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  quickReplyButton: { backgroundColor: colors.primaryDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  quickReplyButton: { backgroundColor: colors.primaryDim, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 9 },
   quickReplyText: { color: colors.primary, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
   quickReplySecondary: { backgroundColor: colors.bg, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 12, paddingVertical: 8 },
   quickReplySecondaryText: { color: colors.inkSoft, fontFamily: fonts.bodySemiBold, fontSize: 11.5 },
-  composer: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 18 : 12, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
+  composer: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 18 : 12, backgroundColor: colors.surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline, shadowColor: "#0F172A", shadowOpacity: 0.09, shadowRadius: 18, shadowOffset: { width: 0, height: -8 }, elevation: 8 },
   recordingBanner: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingBottom: 8 },
   recordingDotWrap: { width: 18, height: 18, alignItems: "center", justifyContent: "center", marginRight: 6 },
   recordingPulse: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: colors.urgent },
@@ -907,15 +923,16 @@ const styles = StyleSheet.create({
   typingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.inkFaint },
   attachRail: { gap: 8, paddingBottom: 10, paddingHorizontal: 2 },
   attachChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", backgroundColor: colors.bg, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 12, paddingVertical: 8 },
-  attachChipText: { color: colors.inkSoft, fontFamily: fonts.bodyMedium, fontSize: 11 },
-  topicChipActive: { backgroundColor: colors.mintDim },
+  attachChipText: { color: colors.inkSoft, fontFamily: fonts.bodyMedium, fontSize: 11.2 },
+  topicChipActive: { backgroundColor: colors.mintDim, borderColor: "rgba(4,120,87,0.22)" },
   topicChipTextActive: { color: colors.mint },
-  deleteChip: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.urgentDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8, marginLeft: 2 },
+  deleteChip: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.urgentDim, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, marginLeft: 2 },
   deleteChipText: { color: colors.urgent, fontFamily: fonts.body, fontSize: 11, marginLeft: 6 },
-  inputRow: { flexDirection: "row", alignItems: "flex-end", backgroundColor: colors.bg, borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 6, paddingVertical: 6, gap: 8 },
-  micBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  input: { flex: 1, maxHeight: 104, color: colors.ink, fontFamily: fonts.body, fontSize: 13, paddingTop: 9, paddingBottom: 9 },
-  sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", backgroundColor: colors.bg, borderRadius: 26, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, paddingHorizontal: 6, paddingVertical: 6, gap: 8 },
+  micBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
+  input: { flex: 1, maxHeight: 104, color: colors.ink, fontFamily: fonts.body, fontSize: 13.5, paddingTop: 10, paddingBottom: 10 },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", shadowColor: colors.primary, shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 2 },
+  sendBtnDisabled: { backgroundColor: colors.inkFaint, shadowOpacity: 0 },
   locationBackdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.45)", justifyContent: "flex-end", padding: 16 },
   locationSheet: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.hairline, padding: 18, shadowColor: "#0F172A", shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 6 },
   locationTitle: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 17 },

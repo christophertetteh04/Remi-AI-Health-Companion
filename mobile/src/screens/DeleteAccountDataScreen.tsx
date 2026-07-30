@@ -35,6 +35,9 @@ const LOCAL_KEYS = [
   "remi_cholesterol_tracking_plan",
   "remi_thyroid_tracking_plan",
   "remi_lock_enabled",
+  "remi_lock_pin",
+  "remi_low_bandwidth_mode",
+  "remi_account_backup_last_sync",
 ];
 
 const ASYNC_STORAGE_KEYS = ["remi_recent_activity", "remi_chat_memory", "remi_cycle_detail_entries", "remi_medication_adherence_streaks"];

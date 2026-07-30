@@ -1,5 +1,6 @@
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
+import { isLowBandwidthModeEnabled } from "./network";
 import { analyticsRequestHeader } from "./posthog";
 import { getFreshAccessToken } from "./api";
 
@@ -83,7 +84,8 @@ export async function stopRecordingAndTranscribe(): Promise<{ text: string; erro
   transcriptionCanceled = false;
   const controller = new AbortController();
   transcriptionController = controller;
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeoutMs = (await isLowBandwidthModeEnabled()) ? 45000 : 30000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_BASE_URL}/speech/transcribe-file`, {
       method: "POST",
