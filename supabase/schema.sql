@@ -136,6 +136,7 @@ create table if not exists provider_incidents (
   error_message text,
   occurred_at timestamptz default now()
 );
+alter table provider_incidents enable row level security;
 
 create table if not exists sample_photos (
   id uuid primary key default gen_random_uuid(),

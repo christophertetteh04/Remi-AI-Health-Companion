@@ -12,6 +12,21 @@ export class AdminController {
     return this.adminService.listUsers();
   }
 
+  @Get("overview")
+  async getOverview() {
+    return this.adminService.getOverview();
+  }
+
+  @Get("activity-summary")
+  async getActivitySummary() {
+    return this.adminService.getActivitySummary();
+  }
+
+  @Get("system-health")
+  async getSystemHealth() {
+    return this.adminService.getSystemHealth();
+  }
+
   @Get("flagged")
   async listFlagged() {
     // Urgent-tier symptom episodes and vitals readings — the
