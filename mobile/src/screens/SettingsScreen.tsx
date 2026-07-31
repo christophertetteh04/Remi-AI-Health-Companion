@@ -58,6 +58,9 @@ export default function SettingsScreen({ navigation }: any) {
     })();
     const unsubscribe = navigation.addListener("focus", async () => {
       setProfile(await loadProfile());
+      setLargeText((await SecureStore.getItemAsync(LARGE_TEXT_KEY)) === "true");
+      setDarkAppearance((await SecureStore.getItemAsync(DARK_APPEARANCE_KEY)) === "true");
+      setAnalytics((await SecureStore.getItemAsync(ANALYTICS_KEY)) !== "false");
       setReminders((await SecureStore.getItemAsync(HEALTH_REMINDERS_ENABLED_KEY)) === "true");
       setHydration((await SecureStore.getItemAsync(HYDRATION_ENABLED_KEY)) === "true");
       setQuietHours((await SecureStore.getItemAsync(QUIET_HOURS_ENABLED_KEY)) === "true");

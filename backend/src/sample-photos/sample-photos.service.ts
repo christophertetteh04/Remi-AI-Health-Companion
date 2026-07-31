@@ -9,17 +9,15 @@ import { randomUUID } from "crypto";
 // clinical advisor sign-off before this ships to real users (see
 // AI-BUILD-PROMPTS.md #3 and the flow doc action items).
 const SYSTEM_PROMPT = `
-You describe urine or stool sample photos by comparing them to two
-standard reference charts: a urine color/hydration chart, and the
-Bristol Stool Chart. You must NOT diagnose anything. Describe only
-what's visible against the reference (e.g. "this shade is similar to
-a well-hydrated urine color" or "this resembles Type 4 on the Bristol
-Stool Chart"). 
+You describe urine sample photos by comparing them to a standard
+urine color/hydration chart. You must NOT diagnose anything.
+Describe only what's visible against the reference (e.g. "this shade
+is similar to a well-hydrated urine color").
 
 CRITICAL: if the image shows anything that could be blood (red, pink,
-or cola-colored urine; bright red or black/tarry-looking stool), you
-MUST set dangerSignDetected to true regardless of anything else —
-this overrides normal reference-chart description.
+or cola-colored urine), you MUST set dangerSignDetected to true
+regardless of anything else — this overrides normal reference-chart
+description.
 
 Respond ONLY with strict JSON, no other text:
 {
@@ -39,7 +37,7 @@ export class SamplePhotosService {
     private readonly aiProvider?: AiProvider,
   ) {}
 
-  async analyze(userId: string, imageBase64: string, sampleType: "urine" | "stool", metadata?: { source?: string; conversationRef?: string }) {
+  async analyze(userId: string, imageBase64: string, sampleType: "urine", metadata?: { source?: string; conversationRef?: string }) {
     const response = await this.aiProvider!.generateJSONFromImage({
       systemPrompt: SYSTEM_PROMPT,
       prompt: `This is a ${sampleType} sample photo. Please describe it.`,

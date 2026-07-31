@@ -4,6 +4,6 @@ export class AnalyzeSamplePhotoDto {
   @IsBase64()
   imageBase64: string;
 
-  @IsIn(["urine", "stool"])
-  sampleType: "urine" | "stool";
+  @IsIn(["urine"])
+  sampleType: "urine";
 }

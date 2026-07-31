@@ -370,7 +370,7 @@ export default function ChatScreen({ navigation }: any) {
 
   const processCheckinUpload = async (
     upload: PendingUpload,
-    extra?: { confirmedCategory?: DocumentUploadCategory; sampleType?: "urine" | "stool"; bodyLocation?: string },
+    extra?: { confirmedCategory?: DocumentUploadCategory; sampleType?: "urine"; bodyLocation?: string },
   ) => {
     setLoading(true);
     setPendingUploadAction(null);
@@ -396,7 +396,7 @@ export default function ChatScreen({ navigation }: any) {
       }
       if (data.status === "needs_sample_type") {
         setPendingUploadAction({ mode: "sample_type", upload });
-        await appendMessages([makeMessage({ from: "bot", text: data.message || "Is this a urine sample or a stool sample?" })]);
+        await appendMessages([makeMessage({ from: "bot", text: data.message || "Please confirm this is a urine sample before I process it." })]);
         return;
       }
       if (data.status === "route_to_prescription_confirmation") {
@@ -430,7 +430,7 @@ export default function ChatScreen({ navigation }: any) {
     processCheckinUpload(action.upload, { confirmedCategory: category });
   };
 
-  const confirmSampleType = (sampleType: "urine" | "stool") => {
+  const confirmSampleType = (sampleType: "urine") => {
     const action = pendingUploadAction;
     if (!action) return;
     processCheckinUpload(action.upload, { confirmedCategory: "sample_photo", sampleType });
@@ -504,6 +504,8 @@ export default function ChatScreen({ navigation }: any) {
         ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={styles.messagesContent}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
         keyboardShouldPersistTaps="handled"
       >
         <AnimatedGreetingCard accessedAt={accessedAt} />
@@ -530,12 +532,9 @@ export default function ChatScreen({ navigation }: any) {
           </QuickReplyPanel>
         )}
         {pendingUploadAction?.mode === "sample_type" && (
-          <QuickReplyPanel title="Which sample is this?">
+          <QuickReplyPanel title="Confirm sample type">
             <Pressable onPress={() => confirmSampleType("urine")} style={styles.quickReplyButton}>
-              <Text style={styles.quickReplyText}>Urine</Text>
-            </Pressable>
-            <Pressable onPress={() => confirmSampleType("stool")} style={styles.quickReplyButton}>
-              <Text style={styles.quickReplyText}>Stool</Text>
+              <Text style={styles.quickReplyText}>Urine sample</Text>
             </Pressable>
           </QuickReplyPanel>
         )}

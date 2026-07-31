@@ -191,7 +191,7 @@ export class CheckinsService {
       return { status: "processed", classification: publicClassification(classification), result, message: `Saved the symptom photo with location: ${dto.bodyLocation}.` };
     }
     if (classification.category === "sample_photo") {
-      if (!dto.sampleType) return { status: "needs_sample_type", classification: publicClassification(classification), message: "This looks like a sample photo. Please confirm whether it is urine or stool before I process it." };
+      if (!dto.sampleType) return { status: "needs_sample_type", classification: publicClassification(classification), message: "This looks like a sample photo. Please confirm this is a urine sample before I process it." };
       const result = await this.samplePhotos!.analyze(userId, dto.imageBase64, dto.sampleType, metadata);
       return { status: "processed", classification: publicClassification(classification), result, message: result.urgentMessage ? `${result.description} ${result.urgentMessage}` : result.description };
     }

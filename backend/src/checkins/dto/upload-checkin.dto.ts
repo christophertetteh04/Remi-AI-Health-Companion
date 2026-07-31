@@ -20,8 +20,8 @@ export class UploadCheckinDto {
   scanType?: string;
 
   @IsOptional()
-  @IsIn(["urine", "stool"])
-  sampleType?: "urine" | "stool";
+  @IsIn(["urine"])
+  sampleType?: "urine";
 
   @IsOptional()
   @IsString()

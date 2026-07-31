@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Activity, ArrowLeft, ChevronRight, ClipboardList, FileText, MessageCircle, Pill, ShieldAlert, Sparkles } from "lucide-react-native";
 import { Card } from "../components/UI";
+import SmoothEntrance from "../components/SmoothEntrance";
 import { colors, fonts, spacing } from "../theme/tokens";
 import { getRecentActivities, type RecentActivity } from "../services/recentActivity";
 
@@ -53,7 +54,7 @@ export default function AllActivitiesScreen({ navigation }: any) {
   );
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.container} decelerationRate="fast" scrollEventThrottle={16}>
       <View style={styles.topBar}>
         <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={18} color={colors.ink} />
@@ -64,77 +65,82 @@ export default function AllActivitiesScreen({ navigation }: any) {
         </View>
       </View>
 
-      <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <View style={styles.heroIcon}>
-            <ClipboardList size={28} color={colors.primary} />
+      <SmoothEntrance>
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroIcon}>
+              <ClipboardList size={28} color={colors.primary} />
+            </View>
+            <View style={styles.heroGlow}>
+              <Sparkles size={16} color={colors.peach} />
+            </View>
           </View>
-          <View style={styles.heroGlow}>
-            <Sparkles size={16} color={colors.peach} />
+          <Text style={styles.eyebrow}>ACTIVITY HISTORY</Text>
+          <Text style={styles.title}>All recent activity</Text>
+          <Text style={styles.subtitle}>A clean record of conversations, lab uploads, vitals, medications, and care updates saved on this device.</Text>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryTile}>
+              <Text style={styles.summaryValue} numberOfLines={1}>{activities.length}</Text>
+              <Text style={styles.summaryLabel}>Saved</Text>
+            </View>
+            <View style={styles.summaryTile}>
+              <Text style={styles.summaryValue} numberOfLines={1}>{uniqueTypes}</Text>
+              <Text style={styles.summaryLabel}>Types</Text>
+            </View>
+            <View style={styles.summaryTileWide}>
+              <Text style={styles.summaryValueSmall} numberOfLines={1}>{latestActivity ? formatActivityDate(latestActivity.createdAt) : "None yet"}</Text>
+              <Text style={styles.summaryLabel}>Latest</Text>
+            </View>
           </View>
         </View>
-        <Text style={styles.eyebrow}>ACTIVITY HISTORY</Text>
-        <Text style={styles.title}>All recent activity</Text>
-        <Text style={styles.subtitle}>A clean record of conversations, lab uploads, vitals, medications, and care updates saved on this device.</Text>
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryTile}>
-            <Text style={styles.summaryValue} numberOfLines={1}>{activities.length}</Text>
-            <Text style={styles.summaryLabel}>Saved</Text>
-          </View>
-          <View style={styles.summaryTile}>
-            <Text style={styles.summaryValue} numberOfLines={1}>{uniqueTypes}</Text>
-            <Text style={styles.summaryLabel}>Types</Text>
-          </View>
-          <View style={styles.summaryTileWide}>
-            <Text style={styles.summaryValueSmall} numberOfLines={1}>{latestActivity ? formatActivityDate(latestActivity.createdAt) : "None yet"}</Text>
-            <Text style={styles.summaryLabel}>Latest</Text>
-          </View>
-        </View>
-      </View>
+      </SmoothEntrance>
 
-      <Card style={styles.activityCard}>
-        {activities.length === 0 ? (
-          <View style={styles.emptyActivity}>
-            <View style={styles.emptyIcon}>
-              <ClipboardList size={22} color={colors.primary} />
+      <SmoothEntrance delay={70}>
+        <Card style={styles.activityCard}>
+          {activities.length === 0 ? (
+            <View style={styles.emptyActivity}>
+              <View style={styles.emptyIcon}>
+                <ClipboardList size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.emptyTitle}>No activity yet</Text>
+                <Text style={styles.emptySub}>Your Remi activity will appear here after you chat, upload labs, log vitals, or update care plans.</Text>
+              </View>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.emptyTitle}>No activity yet</Text>
-              <Text style={styles.emptySub}>Your Remi activity will appear here after you chat, upload labs, log vitals, or update care plans.</Text>
-            </View>
-          </View>
-        ) : (
-          activities.map((item, index) => {
-            const Icon = activityIcon(item.type);
-            const meta = activityMeta(item.type);
-            return (
-              <Pressable
-                key={`${item.id}-${index}`}
-                onPress={() => navigation.navigate("ActivityDetail", { activityId: item.id })}
-                style={({ pressed }) => [styles.activityRow, pressed && styles.activityRowPressed]}
-              >
-                <View style={styles.timelineRail}>
-                  <View style={[styles.activityIcon, { backgroundColor: meta.bg }]}>
-                    <Icon size={17} color={meta.color} />
-                  </View>
-                  {index !== activities.length - 1 ? <View style={styles.timelineLine} /> : null}
-                </View>
-                <View style={styles.activityBody}>
-                  <View style={styles.activityTitleRow}>
-                    <Text style={styles.activityTitle} numberOfLines={1}>{item.title}</Text>
-                    <View style={[styles.typeChip, { backgroundColor: meta.bg }]}>
-                      <Text style={[styles.typeText, { color: meta.color }]} numberOfLines={1}>{meta.label}</Text>
+          ) : (
+            activities.map((item, index) => {
+              const Icon = activityIcon(item.type);
+              const meta = activityMeta(item.type);
+              return (
+                <SmoothEntrance key={`${item.id}-${index}`} delay={Math.min(index, 10) * 35}>
+                  <Pressable
+                    onPress={() => navigation.navigate("ActivityDetail", { activityId: item.id })}
+                    style={({ pressed }) => [styles.activityRow, pressed && styles.activityRowPressed]}
+                  >
+                    <View style={styles.timelineRail}>
+                      <View style={[styles.activityIcon, { backgroundColor: meta.bg }]}>
+                        <Icon size={17} color={meta.color} />
+                      </View>
+                      {index !== activities.length - 1 ? <View style={styles.timelineLine} /> : null}
                     </View>
-                  </View>
-                  <Text style={styles.activitySub} numberOfLines={2}>{item.detail}</Text>
-                  <Text style={styles.activityDate} numberOfLines={1}>{formatActivityDate(item.createdAt)}</Text>
-                </View>
-                <ChevronRight size={15} color={colors.inkFaint} style={styles.chevron} />
-              </Pressable>
-            );
-          })
-        )}
-      </Card>
+                    <View style={styles.activityBody}>
+                      <View style={styles.activityTitleRow}>
+                        <Text style={styles.activityTitle} numberOfLines={1}>{item.title}</Text>
+                        <View style={[styles.typeChip, { backgroundColor: meta.bg }]}>
+                          <Text style={[styles.typeText, { color: meta.color }]} numberOfLines={1}>{meta.label}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.activitySub} numberOfLines={2}>{item.detail}</Text>
+                      <Text style={styles.activityDate} numberOfLines={1}>{formatActivityDate(item.createdAt)}</Text>
+                    </View>
+                    <ChevronRight size={15} color={colors.inkFaint} style={styles.chevron} />
+                  </Pressable>
+                </SmoothEntrance>
+              );
+            })
+          )}
+        </Card>
+      </SmoothEntrance>
     </ScrollView>
   );
 }

@@ -157,7 +157,7 @@ alter table provider_incidents enable row level security;
 create table if not exists sample_photos (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete cascade,
-  sample_type text check (sample_type in ('urine','stool')),
+  sample_type text check (sample_type in ('urine')),
   photo_path text, -- storage path in the 'sample-photos' bucket (PRIVATE)
   description text, -- encrypted (see EncryptionService)
   danger_sign_detected boolean default false,

@@ -157,7 +157,7 @@ export async function uploadCheckinImage(body: {
   conversationRef?: string;
   confirmedCategory?: DocumentUploadCategory;
   bodyLocation?: string;
-  sampleType?: "urine" | "stool";
+  sampleType?: "urine";
   scanType?: string;
 }): Promise<CheckinUploadResponse> {
   const res = await apiFetch(`${API_BASE_URL}/checkins/upload`, {
